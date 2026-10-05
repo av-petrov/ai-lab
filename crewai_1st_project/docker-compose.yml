@@ -1,0 +1,22 @@
+services:
+  crewai:
+    build: .
+    working_dir: /workspace
+
+    volumes:
+      - .:/workspace
+      - ./.kubeconfig-crewai-ro:/kube/config:ro
+
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CREWAI_LLM: ${CREWAI_LLM:-openai/gpt-4o-mini}
+      KUBECONFIG: /kube/config
+
+    networks:
+      - default
+      - kind
+
+networks:
+  kind:
+    external: true
+    name: kind
