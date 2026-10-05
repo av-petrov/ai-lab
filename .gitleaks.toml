@@ -1,0 +1,16 @@
+title = "ai-lab gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "CrewAI documentation placeholder"
+targetRules = ["curl-auth-header"]
+condition = "AND"
+regexTarget = "match"
+regexes = [
+  '''Authorization:\s*Bearer\s+YOUR_PERSONAL_ACCESS_TOKEN'''
+]
+paths = [
+  '''(^|/)crewai_1st_project/latest_ai_flow/AGENTS\.md$'''
+]

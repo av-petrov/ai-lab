@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "==> Running Gitleaks on staged changes..."
+
+docker run --rm \
+  --network no-internet \
+  -v "$ROOT:/repo" \
+  -w /repo \
+  ghcr.io/gitleaks/gitleaks:latest \
+  git . \
+  --staged \
+  --config /repo/.gitleaks.toml \
+  --redact
+
+echo "==> Gitleaks passed"
