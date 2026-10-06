@@ -9,10 +9,48 @@ from crewai.tools import tool
 from crewai.flow import Flow, listen, start
 from kubernetes import client, config
 
+from latest_ai_flow.sanitizer import pseudonymize
 
 def get_api():
     config.load_kube_config()
     return client.CoreV1Api()
+
+
+def anonymize_node_name(node_name: str | None) -> str:
+    """Return a stable pseudonym for a Kubernetes node name."""
+
+    if not node_name:
+        return "not scheduled"
+
+    return pseudonymize(node_name, "node")
+
+
+def get_node_replacements(api: client.CoreV1Api) -> dict[str, str]:
+    """Build a mapping of real node names to stable pseudonyms."""
+
+    return {
+        node.metadata.name: anonymize_node_name(node.metadata.name)
+        for node in api.list_node().items
+        if node.metadata.name
+    }
+
+
+def sanitize_node_references(
+    value: str | None,
+    replacements: dict[str, str],
+) -> str:
+    """Replace known node names in free-form Kubernetes text."""
+
+    if not value:
+        return "-"
+
+    sanitized = value
+
+    # Replace longer names first in case one node name is a prefix of another.
+    for real_name in sorted(replacements, key=len, reverse=True):
+        sanitized = sanitized.replace(real_name, replacements[real_name])
+
+    return sanitized
 
 
 @tool("List pods")
@@ -33,7 +71,7 @@ def list_pods(namespace: str) -> str:
                 [
                     f"Name: {pod.metadata.name}",
                     f"Phase: {pod.status.phase}",
-                    f"Node: {pod.spec.node_name or 'not scheduled'}",
+                    f"Node: {anonymize_node_name(pod.spec.node_name)}",
                 ]
             )
         )
@@ -52,11 +90,13 @@ def get_pod_details(namespace: str, pod_name: str) -> str:
         namespace=namespace,
     )
 
+    node_replacements = get_node_replacements(api)
+
     output = [
         f"Name: {pod.metadata.name}",
         f"Namespace: {pod.metadata.namespace}",
         f"Phase: {pod.status.phase}",
-        f"Node: {pod.spec.node_name or 'not scheduled'}",
+        f"Node: {anonymize_node_name(pod.spec.node_name)}",
         "",
         "Containers:",
     ]
@@ -82,7 +122,7 @@ def get_pod_details(namespace: str, pod_name: str) -> str:
         output.append(
             f"- {condition.type}: {condition.status}; "
             f"reason={condition.reason or '-'}; "
-            f"message={condition.message or '-'}"
+            f"message={sanitize_node_references(condition.message, node_replacements)}"
         )
 
     return "\n".join(output)
@@ -94,6 +134,7 @@ def get_events(namespace: str) -> str:
 
     api = get_api()
     events = api.list_namespaced_event(namespace).items
+    node_replacements = get_node_replacements(api)
 
     if not events:
         return f"No events found in namespace {namespace}"
@@ -110,13 +151,18 @@ def get_events(namespace: str) -> str:
     result = []
 
     for event in events[-20:]:
+        object_name = event.involved_object.name
+
+        if event.involved_object.kind == "Node":
+            object_name = anonymize_node_name(object_name)
+
         result.append(
             "\n".join(
                 [
-                    f"Object: {event.involved_object.kind}/{event.involved_object.name}",
+                    f"Object: {event.involved_object.kind}/{object_name}",
                     f"Type: {event.type}",
                     f"Reason: {event.reason}",
-                    f"Message: {event.message}",
+                    f"Message: {sanitize_node_references(event.message, node_replacements)}",
                 ]
             )
         )
@@ -145,7 +191,7 @@ def list_nodes() -> str:
         result.append(
             "\n".join(
                 [
-                    f"Name: {node.metadata.name}",
+                    f"Name: {anonymize_node_name(node.metadata.name)}",
                     f"Ready: {ready}",
                     f"CPU allocatable: {allocatable.get('cpu', 'unknown')}",
                     f"Memory allocatable: {allocatable.get('memory', 'unknown')}",
