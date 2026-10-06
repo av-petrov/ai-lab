@@ -4,203 +4,18 @@ import os
 
 from pydantic import BaseModel
 
-from crewai import Agent
-from crewai.tools import tool
+from latest_ai_flow.crews.kubernetes_crew.kubernetes_crew import (
+    KubernetesCrew,
+)
+
 from crewai.flow import Flow, listen, start
-from kubernetes import client, config
 
-from latest_ai_flow.sanitizer import pseudonymize
-
-def get_api():
-    config.load_kube_config()
-    return client.CoreV1Api()
-
-
-def anonymize_node_name(node_name: str | None) -> str:
-    """Return a stable pseudonym for a Kubernetes node name."""
-
-    if not node_name:
-        return "not scheduled"
-
-    return pseudonymize(node_name, "node")
-
-
-def get_node_replacements(api: client.CoreV1Api) -> dict[str, str]:
-    """Build a mapping of real node names to stable pseudonyms."""
-
-    return {
-        node.metadata.name: anonymize_node_name(node.metadata.name)
-        for node in api.list_node().items
-        if node.metadata.name
-    }
-
-
-def sanitize_node_references(
-    value: str | None,
-    replacements: dict[str, str],
-) -> str:
-    """Replace known node names in free-form Kubernetes text."""
-
-    if not value:
-        return "-"
-
-    sanitized = value
-
-    # Replace longer names first in case one node name is a prefix of another.
-    for real_name in sorted(replacements, key=len, reverse=True):
-        sanitized = sanitized.replace(real_name, replacements[real_name])
-
-    return sanitized
-
-
-@tool("List pods")
-def list_pods(namespace: str) -> str:
-    """List pods and their current state in a Kubernetes namespace."""
-
-    api = get_api()
-    pods = api.list_namespaced_pod(namespace).items
-
-    if not pods:
-        return f"No pods found in namespace {namespace}"
-
-    result = []
-
-    for pod in pods:
-        result.append(
-            "\n".join(
-                [
-                    f"Name: {pod.metadata.name}",
-                    f"Phase: {pod.status.phase}",
-                    f"Node: {anonymize_node_name(pod.spec.node_name)}",
-                ]
-            )
-        )
-
-    return "\n\n".join(result)
-
-
-@tool("Get pod details")
-def get_pod_details(namespace: str, pod_name: str) -> str:
-    """Get scheduling state, conditions and resource requests for a pod."""
-
-    api = get_api()
-
-    pod = api.read_namespaced_pod(
-        name=pod_name,
-        namespace=namespace,
-    )
-
-    node_replacements = get_node_replacements(api)
-
-    output = [
-        f"Name: {pod.metadata.name}",
-        f"Namespace: {pod.metadata.namespace}",
-        f"Phase: {pod.status.phase}",
-        f"Node: {anonymize_node_name(pod.spec.node_name)}",
-        "",
-        "Containers:",
-    ]
-
-    for container in pod.spec.containers:
-        requests = container.resources.requests or {}
-        limits = container.resources.limits or {}
-
-        output.extend(
-            [
-                f"- {container.name}",
-                f"  CPU request: {requests.get('cpu', 'none')}",
-                f"  Memory request: {requests.get('memory', 'none')}",
-                f"  CPU limit: {limits.get('cpu', 'none')}",
-                f"  Memory limit: {limits.get('memory', 'none')}",
-            ]
-        )
-
-    output.append("")
-    output.append("Conditions:")
-
-    for condition in pod.status.conditions or []:
-        output.append(
-            f"- {condition.type}: {condition.status}; "
-            f"reason={condition.reason or '-'}; "
-            f"message={sanitize_node_references(condition.message, node_replacements)}"
-        )
-
-    return "\n".join(output)
-
-
-@tool("Get Kubernetes events")
-def get_events(namespace: str) -> str:
-    """Get recent Kubernetes events for incident investigation."""
-
-    api = get_api()
-    events = api.list_namespaced_event(namespace).items
-    node_replacements = get_node_replacements(api)
-
-    if not events:
-        return f"No events found in namespace {namespace}"
-
-    def event_time(event):
-        return (
-            event.last_timestamp
-            or event.event_time
-            or event.metadata.creation_timestamp
-        )
-
-    events = sorted(events, key=event_time)
-
-    result = []
-
-    for event in events[-20:]:
-        object_name = event.involved_object.name
-
-        if event.involved_object.kind == "Node":
-            object_name = anonymize_node_name(object_name)
-
-        result.append(
-            "\n".join(
-                [
-                    f"Object: {event.involved_object.kind}/{object_name}",
-                    f"Type: {event.type}",
-                    f"Reason: {event.reason}",
-                    f"Message: {sanitize_node_references(event.message, node_replacements)}",
-                ]
-            )
-        )
-
-    return "\n\n".join(result)
-
-
-@tool("List Kubernetes nodes")
-def list_nodes() -> str:
-    """List nodes with readiness and allocatable compute resources."""
-
-    api = get_api()
-    nodes = api.list_node().items
-
-    result = []
-
-    for node in nodes:
-        ready = "Unknown"
-
-        for condition in node.status.conditions or []:
-            if condition.type == "Ready":
-                ready = condition.status
-
-        allocatable = node.status.allocatable or {}
-
-        result.append(
-            "\n".join(
-                [
-                    f"Name: {anonymize_node_name(node.metadata.name)}",
-                    f"Ready: {ready}",
-                    f"CPU allocatable: {allocatable.get('cpu', 'unknown')}",
-                    f"Memory allocatable: {allocatable.get('memory', 'unknown')}",
-                ]
-            )
-        )
-
-    return "\n\n".join(result)
-
+from latest_ai_flow.tools.kubernetes_tools import (
+    get_events,
+    get_pod_details,
+    list_nodes,
+    list_pods,
+)
 
 class IncidentState(BaseModel):
     incident: str = ""
@@ -225,46 +40,10 @@ Do not assume the cause before investigating.
 
     @listen(receive_incident)
     def investigate(self):
-        sre = Agent(
-            role="Senior Kubernetes SRE",
-            goal=(
-                "Diagnose Kubernetes incidents using evidence "
-                "collected directly from the cluster."
-            ),
-            backstory=(
-                "You are an experienced Kubernetes SRE. "
-                "You investigate incidents systematically and "
-                "separate observed facts from hypotheses. "
-                "You prefer gathering evidence through available tools "
-                "instead of guessing."
-            ),
-            tools=[
-                list_pods,
-                get_pod_details,
-                get_events,
-                list_nodes,
-            ],
-            llm=os.getenv(
-                "CREWAI_LLM",
-                "openai/gpt-4o-mini",
-            ),
-            verbose=True,
-        )
-
-        result = sre.kickoff(
-            self.state.incident
-            + """
-
-Produce a concise incident report with:
-
-1. Observed symptom
-2. Evidence collected
-3. Root cause
-4. Why the workload cannot start
-5. Recommended remediation
-
-Explicitly distinguish facts observed through tools from your conclusions.
-"""
+        result = KubernetesCrew().crew().kickoff(
+            inputs={
+                "incident": self.state.incident,
+            }
         )
 
         self.state.analysis = result.raw

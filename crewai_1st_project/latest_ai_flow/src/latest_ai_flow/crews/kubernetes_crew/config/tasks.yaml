@@ -1,0 +1,26 @@
+investigate_incident:
+  description: >
+    Investigate the following Kubernetes incident:
+
+    {incident}
+
+    Use the available Kubernetes tools to collect evidence.
+    Do not assume the cause before investigating.
+
+    Produce a concise incident report with:
+
+    1. Observed symptom
+    2. Evidence collected
+    3. Root cause
+    4. Why the workload cannot start
+    5. Recommended remediation
+
+    Explicitly distinguish facts observed through tools
+    from your conclusions.
+
+  expected_output: >
+    A concise incident report containing the observed symptom,
+    collected evidence, root cause, explanation of why the workload
+    cannot start, and recommended remediation.
+
+  agent: sre
