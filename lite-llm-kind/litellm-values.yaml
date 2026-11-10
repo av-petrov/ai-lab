@@ -1,0 +1,61 @@
+# LiteLLM proxy on the local kind cluster (context kind-dev01, namespace litellm)
+# Chart:   oci://ghcr.io/berriai/litellm-helm (litellm-helm), version 1.108.4 (appVersion 1.108.4)
+# Install: helm upgrade --install litellm oci://ghcr.io/berriai/litellm-helm --version 1.108.4 \
+#            -n litellm --kube-context kind-dev01 -f litellm-values.yaml
+#
+# Secrets are created out-of-band with kubectl and are NOT stored in this repo:
+#   anthropic-api-key   (key ANTHROPIC_API_KEY) -> exposed to the proxy via environmentSecrets
+#   litellm-master-key  (key masterkey)         -> PROXY_MASTER_KEY via masterkeySecretName
+
+# Exported to the proxy pod as env vars; referenced below as os.environ/ANTHROPIC_API_KEY
+environmentSecrets:
+  - anthropic-api-key
+
+# Use the pre-created master key secret instead of letting the chart generate one
+masterkeySecretName: litellm-master-key
+masterkeySecretKey: masterkey
+
+proxy_config:
+  model_list:
+    - model_name: claude-opus-5-5
+      litellm_params:
+        model: anthropic/claude-opus-5-5
+        api_key: os.environ/ANTHROPIC_API_KEY
+    - model_name: claude-sonnet-5-5
+      litellm_params:
+        model: anthropic/claude-sonnet-5-5
+        api_key: os.environ/ANTHROPIC_API_KEY
+    - model_name: claude-haiku-5-5
+      litellm_params:
+        model: anthropic/claude-haiku-5-5
+        api_key: os.environ/ANTHROPIC_API_KEY
+  general_settings:
+    master_key: os.environ/PROXY_MASTER_KEY
+
+# Small footprint for a local kind cluster
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+migrationJob:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 2Gi # 1Gi got OOMKilled while building indexes
+
+# Bundled PostgreSQL (db.deployStandalone defaults to true): kept, but minimal
+postgresql:
+  primary:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+    persistence:
+      size: 1Gi
