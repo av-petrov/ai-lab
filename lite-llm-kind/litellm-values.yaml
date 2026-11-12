@@ -6,10 +6,11 @@
 # Secrets are created out-of-band with kubectl and are NOT stored in this repo:
 #   anthropic-api-key   (key ANTHROPIC_API_KEY) -> exposed to the proxy via environmentSecrets
 #   litellm-master-key  (key masterkey)         -> PROXY_MASTER_KEY via masterkeySecretName
+#   local-llm-api-key   (key LOCAL_LLM_API_KEY) -> exposed to the proxy via environmentSecrets
 
-# Exported to the proxy pod as env vars; referenced below as os.environ/ANTHROPIC_API_KEY
+# Exported to the proxy pod as env vars; referenced below as os.environ/<KEY>
 environmentSecrets:
-  - anthropic-api-key
+  - local-llm-api-key
 
 # Use the pre-created master key secret instead of letting the chart generate one
 masterkeySecretName: litellm-master-key
@@ -17,18 +18,12 @@ masterkeySecretKey: masterkey
 
 proxy_config:
   model_list:
-    - model_name: claude-opus-5-5
+    # Local model behind an OpenAI-compatible endpoint
+    - model_name: qwen3.8-27b-local
       litellm_params:
-        model: anthropic/claude-opus-5-5
-        api_key: os.environ/ANTHROPIC_API_KEY
-    - model_name: claude-sonnet-5-5
-      litellm_params:
-        model: anthropic/claude-sonnet-5-5
-        api_key: os.environ/ANTHROPIC_API_KEY
-    - model_name: claude-haiku-5-5
-      litellm_params:
-        model: anthropic/claude-haiku-5-5
-        api_key: os.environ/ANTHROPIC_API_KEY
+        model: openai/qwen3.8-27b-local
+        api_base: https://llm.dops.ru/v1
+        api_key: os.environ/LOCAL_LLM_API_KEY
   general_settings:
     master_key: os.environ/PROXY_MASTER_KEY
 
