@@ -1,0 +1,14 @@
+# Admission on kind-dev01: scale argocd-repo-server 1 -> 3 replicas.
+# (LiteLLM from lite-llm-kind is not installed in this cluster right now.)
+cluster_name: kind-dev01
+kube_context: kind-dev01
+update_concurrency: sequential
+require_n_minus_1: false
+require_update_reserve: true
+ipam: {mode: podcidr, reserved_per_cidr: 3}   # Cilium ipam=kubernetes -> node podCIDR /24
+admission:
+  name: argocd-repo-server
+  namespace: argocd
+  kind: Deployment
+  change_type: scale
+  replicas: 3

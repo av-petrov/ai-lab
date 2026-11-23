@@ -1,0 +1,23 @@
+# Audit of the local kind cluster (context kind-dev01).
+cluster_name: kind-dev01
+kube_context: kind-dev01
+# prometheus_url: http://localhost:9090      # if kube-prometheus is port-forwarded
+update_concurrency: sequential
+# kind is often a single node: N-1 is then DEGRADED by definition. Keep the analysis,
+# but do not let it fail admission verdicts. Set true for a multi-worker kind.
+require_n_minus_1: false
+require_update_reserve: true
+n_minus_1_max_nodes: 10
+# Cilium with ipam=kubernetes (as in kind-dev01) or kindnet: per-node podCIDR /24
+ipam:
+  mode: podcidr
+  reserved_per_cidr: 3
+# kind nodes have no pool label -> one pool "default". For pools, add `labels:` per node
+# in the kind config (e.g. node.kubernetes.io/pool: general) and set pool_label here.
+# pool_label: node.kubernetes.io/pool
+reference_pods:
+  - {name: small, requests: {cpu: 100m, memory: 128Mi}}
+  - {name: litellm-like, requests: {cpu: 100m, memory: 512Mi}}
+  - {name: medium, requests: {cpu: 500m, memory: 1Gi}}
+autoscaler:
+  enabled: false

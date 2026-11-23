@@ -1,0 +1,192 @@
+{
+  "computed": {
+    "workload": "Deployment/shop/api",
+    "change_type": "resize",
+    "replicas": 3,
+    "pod_effective_requests": {
+      "cpu": "700m",
+      "memory": "1Gi",
+      "pod-ips": "1",
+      "pods": "1"
+    },
+    "verdict": "DOES_NOT_FIT",
+    "conditions": [
+      "app_rollout: rollout of this change gets stuck: api-resize-1: 0/4 nodes are available: 3 node(s) didn't match pod anti-affinity rules, 3 node(s) didn't satisfy existing pods anti-affinity rules, 1 node(s) had untolerated taint {dedicated: highmem}"
+    ],
+    "confidence": "high",
+    "checks": [
+      {
+        "check": "namespace_quota",
+        "status": "PASS",
+        "summary": "3 pod(s) fit the namespace quota",
+        "details": {
+          "pods_counted": 3,
+          "pod_effective_requests": {
+            "cpu": "700m",
+            "memory": "1Gi",
+            "pod-ips": "1",
+            "pods": "1"
+          },
+          "limitrange_defaults_applied": [],
+          "limitrange_violations": [],
+          "quota_violations": [],
+          "not_evaluated": []
+        }
+      },
+      {
+        "check": "steady_state_placement",
+        "status": "PASS",
+        "summary": "all replicas placed: {'w1': 1, 'w2': 1, 'w3': 1}",
+        "details": {
+          "placement_per_node": {
+            "w1": 1,
+            "w2": 1,
+            "w3": 1
+          },
+          "failed": [],
+          "preemption_candidates": [],
+          "not_evaluated": [],
+          "cluster_free_sum_would_suggest": {
+            "cluster_free": {
+              "cpu": "8100m",
+              "memory": "55.86Gi"
+            },
+            "eligible_nodes": [
+              "w1",
+              "w2",
+              "w3"
+            ],
+            "eligible_free": {
+              "cpu": "4400m",
+              "memory": "27.99Gi"
+            },
+            "needed": {
+              "cpu": "2100m",
+              "memory": "3Gi"
+            },
+            "naive_sum_says_fits": true
+          }
+        }
+      },
+      {
+        "check": "app_rollout",
+        "status": "FAIL",
+        "summary": "rollout of this change gets stuck: api-resize-1: 0/4 nodes are available: 3 node(s) didn't match pod anti-affinity rules, 3 node(s) didn't satisfy existing pods anti-affinity rules, 1 node(s) had untolerated taint {dedicated: highmem}",
+        "details": {
+          "rollout": {
+            "workload": "Deployment/shop/api",
+            "kind": "Deployment",
+            "strategy": "RollingUpdate",
+            "replicas": 3,
+            "max_surge": 1,
+            "max_unavailable": 0,
+            "status": "STUCK",
+            "stuck_reason": "api-resize-1: 0/4 nodes are available: 3 node(s) didn't match pod anti-affinity rules, 3 node(s) didn't satisfy existing pods anti-affinity rules, 1 node(s) had untolerated taint {dedicated: highmem}",
+            "used_unavailability": false,
+            "analytic_reserve": {
+              "cpu": "700m",
+              "memory": "1Gi",
+              "pod-ips": "1",
+              "pods": "1"
+            },
+            "analytic_reserve_raw": {
+              "cpu": 700,
+              "memory": 1073741824,
+              "pod-ips": 1,
+              "pods": 1
+            },
+            "simulated_peak_extra": {},
+            "quota_blocked": [],
+            "events": [],
+            "notes": []
+          },
+          "static_deadlocks": [
+            "Deployment/shop/api: required podAntiAffinity on kubernetes.io/hostname (one pod per domain) with replicas=3 >= eligible domains=3 and maxUnavailable=0: the surge pod has no domain to go to"
+          ]
+        }
+      },
+      {
+        "check": "others_update_reserve",
+        "status": "PASS",
+        "summary": "update reserve of other workloads preserved (2 group(s) were already infeasible before the change)",
+        "details": {
+          "concurrency_model": "sequential",
+          "regressions": [],
+          "preexisting_infeasible": [
+            [
+              "Deployment/analytics/spark"
+            ],
+            [
+              "Deployment/shop/api"
+            ]
+          ],
+          "required_reserve_before": {
+            "cpu": "4",
+            "memory": "32Gi",
+            "pod-ips": "1",
+            "pods": "1"
+          },
+          "required_reserve_after": {
+            "cpu": "4",
+            "memory": "32Gi",
+            "pod-ips": "1",
+            "pods": "1"
+          }
+        }
+      },
+      {
+        "check": "n_minus_1_after",
+        "status": "PASS",
+        "summary": "N-1 not degraded by the change for pods with priority >= 0 (after: DEGRADED, before: DEGRADED); pre-existing node-failure risk, see audit",
+        "details": {
+          "regressions": [],
+          "expendable_newly_pending": [],
+          "min_priority_counted": 0,
+          "overall_before": "DEGRADED",
+          "overall_after": "DEGRADED",
+          "nodes_simulated": [
+            "g1",
+            "w1",
+            "w2",
+            "w3"
+          ],
+          "coverage": "all nodes"
+        }
+      }
+    ],
+    "not_verified": [],
+    "remediation": [
+      {
+        "option": "strategy",
+        "change": "maxSurge=0, maxUnavailable=1 (rollout without surge, -1 replica during update)",
+        "verdict": "FITS",
+        "conditions": []
+      },
+      {
+        "option": "replicas",
+        "change": "replicas 3 -> 2",
+        "verdict": "FITS",
+        "conditions": []
+      },
+      {
+        "option": "add_nodes",
+        "change": "+1 node(s) like w3 in pool general",
+        "verdict": "FITS",
+        "conditions": []
+      }
+    ]
+  },
+  "narrative": null,
+  "assumptions": [
+    "Фит считается по requests (как kube-scheduler), а не по фактическому потреблению; usage — только для рисков.",
+    "free = allocatable − Σ requests всех нетерминальных Pod на узле (включая DaemonSet, static и системные Pod).",
+    "Эффективный request Pod = max(max(init + ранее стартовавшие sidecar), Σ containers + Σ sidecar) + overhead.",
+    "Выбор узла среди подходящих эмулирует scoring по умолчанию; при равенстве — по имени узла (реальный планировщик выбирает случайно).",
+    "Пересоздание Pod при N−1 — в порядке приоритета, затем по имени; вытесненные preemption Pod повторно не планируются.",
+    "Rolling update моделируется до перехода новых Pod в Ready; время старта/readiness не учитывается.",
+    "Модель одновременных обновлений: sequential",
+    "IPAM: {\"mode\": \"podcidr\", \"reserved_per_cidr\": 3}",
+    "Autoscaler: нет (новые узлы не появляются)",
+    "Требование N−1: обязательно; резерв под обновления других: обязателен"
+  ]
+}
