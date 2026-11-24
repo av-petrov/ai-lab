@@ -89,7 +89,7 @@ Talks only to the Argo CD API server. It uses applications, resource tree, event
    ```
 2. Generate a token:
    ```bash
-   kubectl -n argocd port-forward svc/argocd-server 18081:80     # terminal 1 (or: make argocd-ui in k8s-lab/kind)
+   kubectl -n argocd port-forward svc/argocd-server 18081:80     # terminal 1 (or: make argocd-ui ARGOCD_UI_PORT=18081 in k8s-lab/kind)
    deploy/argocd-readonly-account/generate-token.sh             # terminal 2 (admin login with password prompt, then generate-token)
    ```
    Or with the CLI directly:

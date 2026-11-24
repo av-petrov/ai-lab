@@ -3,7 +3,7 @@
 # (password prompt) and creates a token, which is a change to Argo CD state.
 # On kind-dev01 the GitOps equivalent is `make argocd-observer-token` in k8s-lab/kind.
 #
-#   terminal 1:  kubectl -n argocd port-forward svc/argocd-server 18081:80   (or: make argocd-ui in k8s-lab/kind)
+#   terminal 1:  kubectl -n argocd port-forward svc/argocd-server 18081:80   (or: make argocd-ui ARGOCD_UI_PORT=18081 in k8s-lab/kind)
 #   terminal 2:  deploy/argocd-readonly-account/generate-token.sh
 #
 # server.insecure=true -> plain HTTP behind the port-forward, hence --plaintext. --skip-test-tls is required:
