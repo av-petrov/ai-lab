@@ -70,6 +70,22 @@ def main(argv: list[str] | None = None) -> int:
 
     scope = Scope(apps=args.app or [], project=args.project, all=bool(args.all))
     try:
+        missing = preflight_scope(ctx, scope)
+    except ScopeEmpty as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # noqa: BLE001 - e.g. Argo CD unreachable: fail before spending LLM tokens
+        msg = f"error: cannot list applications ({exc.__class__.__name__}: {str(exc)[:200]})"
+        if ctx.mode == "argocd" and "connect" in f"{exc.__class__.__name__} {exc}".lower():
+            msg += (f"\nhint: is the port-forward to {settings.argocd_base_url} running? e.g. "
+                    "`make argocd-ui ARGOCD_UI_PORT=18081` in k8s-lab/kind, or use --mode kube")
+        print(msg, file=sys.stderr)
+        return 2
+    if missing:
+        print(f"warning: application(s) not found, skipped: {', '.join(missing)}", file=sys.stderr)
+        scope = Scope(apps=[a for a in scope.apps if a not in missing])
+        ctx.startup_warnings.append(f"requested application(s) not found and skipped: {', '.join(missing)}")
+    try:
         if args.no_llm:
             from .triage import run_triage
 
@@ -84,6 +100,32 @@ def main(argv: list[str] | None = None) -> int:
 
     _emit(report, args)
     return 1 if report.unhealthy else 0
+
+
+class ScopeEmpty(LookupError):
+    """Nothing in scope exists: stop before any LLM call."""
+
+
+def preflight_scope(ctx, scope: Scope) -> list[str]:
+    """One read-only list call before the agent runs.
+
+    Returns the requested app names that do not exist (the run continues with the rest).
+    Raises ScopeEmpty when nothing in scope exists, so a typo or a demo app that was never created
+    costs one API call instead of an LLM run that can only report "not found".
+    """
+    apps = ctx.backend.list_applications(project=scope.project)
+    names = {a.get("metadata", {}).get("name") for a in apps}
+    if scope.apps:
+        missing = [a for a in scope.apps if a not in names]
+        if len(missing) == len(scope.apps):
+            hint = f" (existing: {', '.join(sorted(n for n in names if n)[:15])})" if names else ""
+            raise ScopeEmpty(f"none of the requested applications exist in {ctx.backend.describe()}: "
+                             f"{', '.join(missing)}{hint}")
+        return missing
+    if not names:
+        where = f"project '{scope.project}'" if scope.project else "Argo CD"
+        raise ScopeEmpty(f"no applications found in {where} ({ctx.backend.describe()})")
+    return []
 
 
 def _emit(report: ArgoCDHealthReport, args: argparse.Namespace) -> None:

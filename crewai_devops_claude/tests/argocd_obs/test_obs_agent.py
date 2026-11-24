@@ -144,3 +144,44 @@ def test_finalize_overrides_llm_status_with_tool_facts(ctx):
     a = rep.apps[0]
     assert (a.sync_status, a.health_status, a.verdict) == ("OutOfSync", "Missing", "missing")
     assert rep.data_sources_used == ["argocd-api (1 calls)"]
+
+
+def _cli_env(monkeypatch, tmp_path, routes):
+    from argocd_observability import cli
+
+    backend, _ = argocd_backend(routes)
+    ctx = make_ctx(backend)
+    monkeypatch.setattr("argocd_observability.context.create_context", lambda s=None: ctx)
+
+    def no_llm(*a, **k):
+        raise AssertionError("the LLM crew must not run")
+
+    monkeypatch.setattr("argocd_observability.crew.run_observability", no_llm)
+    monkeypatch.chdir(tmp_path)
+    return cli
+
+
+def test_cli_fails_fast_when_no_requested_app_exists(monkeypatch, capsys, tmp_path, broken_cluster_routes):
+    cli = _cli_env(monkeypatch, tmp_path, broken_cluster_routes)
+    assert cli.main(["--app", "obs-demo-imagepull", "--app", "typo", "--no-save"]) == 2
+    err = capsys.readouterr().err
+    assert "none of the requested applications exist" in err and "obs-demo-imagepull" in err
+    assert "existing: demo-cl" in err
+
+
+def test_cli_fails_fast_on_empty_project(monkeypatch, capsys, tmp_path, broken_cluster_routes):
+    broken_cluster_routes["/api/v1/applications"] = lambda p: {"items": []} if p.get("projects") else {"items": []}
+    cli = _cli_env(monkeypatch, tmp_path, broken_cluster_routes)
+    assert cli.main(["--all", "--project", "nope", "--no-save"]) == 2
+    assert "no applications found in project 'nope'" in capsys.readouterr().err
+
+
+def test_cli_skips_missing_apps_and_reports_them(monkeypatch, capsys, tmp_path, broken_cluster_routes):
+    cli = _cli_env(monkeypatch, tmp_path, broken_cluster_routes)
+    rc = cli.main(["--app", "demo-cl", "--app", "typo", "--no-llm", "--format", "json", "--no-save"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "skipped: typo" in captured.err
+    rep = ArgoCDHealthReport.model_validate_json(captured.out)
+    assert [a.app_name for a in rep.apps] == ["demo-cl"]
+    assert any("not found and skipped: typo" in lim for lim in rep.limitations)
