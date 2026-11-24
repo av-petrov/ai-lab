@@ -1,0 +1,59 @@
+# DEMO SETUP - CHANGES THE CLUSTER. Apply it yourself:  make demo-setup   (or kubectl apply -f this file)
+# Two deliberately broken Argo CD apps built from the public argoproj/argocd-example-apps repo:
+#   obs-demo-imagepull : image tag that does not exist          -> ErrImagePull / ImagePullBackOff
+#   obs-demo-crashloop : container exits 1 with a FATAL log line -> CrashLoopBackOff
+# Remove with: make demo-teardown
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: obs-demo-imagepull
+  namespace: argocd
+  labels: {app.kubernetes.io/part-of: argocd-observability-demo, sre-demo: broken}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: master
+    path: kustomize-guestbook
+    kustomize:
+      images:
+        - gcr.io/google-samples/gb-frontend:v0-does-not-exist
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: obs-demo-imagepull
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: obs-demo-crashloop
+  namespace: argocd
+  labels: {app.kubernetes.io/part-of: argocd-observability-demo, sre-demo: broken}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: master
+    path: kustomize-guestbook
+    kustomize:
+      images:
+        - gcr.io/google-samples/gb-frontend=busybox:1.36
+      patches:
+        - target: {kind: Deployment}
+          patch: |-
+            - op: add
+              path: /spec/template/spec/containers/0/command
+              value:
+                - sh
+                - -c
+                - "echo 'guestbook-ui: loading config'; echo 'FATAL: required environment variable REDIS_URL is not set' >&2; exit 1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: obs-demo-crashloop
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]

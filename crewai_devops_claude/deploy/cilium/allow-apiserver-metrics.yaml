@@ -1,0 +1,25 @@
+# OPTIONAL. On kind-dev01 the CCNP `baseline-default-deny` only allows ingress from `host`, so the API
+# server (on the control-plane node) cannot reach Argo CD's metrics ports on worker nodes; the agent
+# reports "argocd_metrics_scrape unavailable: timed out". This policy allows exactly that path:
+# ingress from the kube-apiserver / remote nodes to 8082 (controller), 8083 (server), 8084 (repo-server).
+#   kubectl apply -f deploy/cilium/allow-apiserver-metrics.yaml      (you run this; it changes the cluster)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-metrics-from-apiserver
+  namespace: argocd
+  labels: {app.kubernetes.io/part-of: sre-crew}
+spec:
+  description: "Allow API server proxy -> Argo CD /metrics (argocd-observability agent)"
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [argocd-application-controller, argocd-server, argocd-repo-server]
+  ingress:
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - {port: "8082", protocol: TCP}
+            - {port: "8083", protocol: TCP}
+            - {port: "8084", protocol: TCP}

@@ -1,3 +1,5 @@
+> **Argo CD observability agent** (read-only Argo CD SRE observer, `argocd-observe`): see [README.argocd-observability.md](README.argocd-observability.md).
+
 # k8s_capacity: анализ ёмкости Kubernetes на CrewAI (read-only)
 
 Система отвечает не на вопрос «сколько свободно CPU/RAM», а на практические вопросы:
