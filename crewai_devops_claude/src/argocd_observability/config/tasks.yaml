@@ -14,7 +14,9 @@ health_overview:
          - ImagePullBackOff / ErrImagePull: the image or tag does not exist or the registry denies access;
            the pod's events carry the exact registry message.
          - CrashLoopBackOff: the container exits; get the exit code from argocd_live_resource_status and
-           the reason from pod_logs with previous=true.
+           the reason from pod_logs with previous=true. Category crash_loop even when the reason is a missing
+           env var or bad config that the process reports at startup (container_config is only for
+           containers that cannot be created at all: CreateContainerConfigError).
          - OutOfSync + Missing with no operation history and auto-sync disabled: never synced.
          - ComparisonError / failed sync operation: quote the condition or operation message.
     4. Healthy apps get verdict healthy, root_cause_category none, no evidence needed.

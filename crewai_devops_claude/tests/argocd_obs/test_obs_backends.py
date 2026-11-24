@@ -143,3 +143,43 @@ def test_kube_triage_and_access(monkeypatch):
     assert any("write/sensitive" in w for w in acc["warnings"])
     # the only POST ever sent is the SelfSubjectAccessReview
     assert {p for m, p, _ in reader.calls if m != "GET"} == {"/apis/authorization.k8s.io/v1/selfsubjectaccessreviews"}
+
+
+def test_previous_logs_unavailable_falls_back_argocd(broken_cluster_routes):
+    """Argo CD returns 500 ('parsing time "unable"') when the previous instance is gone -> use current."""
+    from .conftest import FakeResponse
+
+    current = [{"result": {"content": "FATAL: required environment variable REDIS_URL is not set",
+                           "timeStampStr": NOW}}, {"result": {"content": "", "last": True}}]
+
+    def logs(params):
+        if params.get("previous") == "true":
+            return FakeResponse(500, {"error": {"http_code": 500, "message":
+                                                'parsing time "unable" as "2006-01-02T15:04:05Z07:00"'}})
+        return FakeResponse(200, b"", lines=current)
+
+    broken_cluster_routes["/api/v1/applications/demo-cl/logs"] = logs
+    backend, sess = argocd_backend(broken_cluster_routes)
+    out = json.loads(_tools(make_ctx(backend))["pod_logs"].run(app_name="demo-cl", pod="web-abc-2",
+                                                               namespace="demo-cl", previous=True))
+    assert "REDIS_URL is not set" in out["lines"]
+    assert out["previous"] is False and "previous-instance logs unavailable" in out["note"]
+    assert [c[2]["previous"] for c in sess.calls if c[1].endswith("/logs")] == ["true", "false"]
+
+
+def test_previous_logs_unavailable_falls_back_kube():
+    """The kubelet answers HTTP 200 with an error text instead of logs -> must not be treated as log lines."""
+    routes = _kube_routes()
+    ns = "demo-ip"
+
+    def log(query):
+        if query.get("previous") == "true":
+            return "unable to retrieve container logs for containerd://2e640fa81b39"
+        return "2026-11-24T05:00:00Z FATAL: boom\n"
+
+    routes[f"/api/v1/namespaces/{ns}/pods/web-abc-1/log"] = log
+    backend, _ = kube_backend(routes)
+    out = json.loads(_tools(make_ctx(backend))["pod_logs"].run(app_name="demo-ip", pod="web-abc-1",
+                                                               namespace=ns, previous=True))
+    assert "FATAL: boom" in out["lines"] and "unable to retrieve" not in out["lines"]
+    assert "previous-instance logs unavailable" in out["note"]

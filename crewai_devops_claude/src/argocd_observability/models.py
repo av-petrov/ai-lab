@@ -37,7 +37,17 @@ class AppDiagnosis(BaseModel):
     verdict: AppVerdict
     failing_resources: list[str] = Field(default_factory=list, description="'Kind/namespace/name' of failing resources.")
     probable_root_cause: str | None = Field(None, description="One or two sentences; null if healthy.")
-    root_cause_category: RootCauseCategory = "none"
+    root_cause_category: RootCauseCategory = Field("none", description=(
+        "Classify by the failure MECHANISM Kubernetes reports, not by the underlying fix: "
+        "image_pull = ErrImagePull/ImagePullBackOff; "
+        "crash_loop = the container starts and exits (CrashLoopBackOff / restarts / non-zero exit code), whatever "
+        "the reason, including a missing env var or bad config the process detects at startup; "
+        "oom_killed = last termination reason OOMKilled; "
+        "container_config = the container cannot be CREATED at all (CreateContainerConfigError, e.g. a missing "
+        "ConfigMap/Secret key referenced by the pod spec); "
+        "scheduling = Pending/FailedScheduling; probe_failure = running but readiness/liveness probes fail; "
+        "never_synced = no operation history + auto-sync off + resources Missing; sync_failed = last sync "
+        "operation Failed/Error; comparison_error = ComparisonError/InvalidSpecError; drift = OutOfSync but healthy."))
     evidence: list[Evidence] = Field(default_factory=list)
     confidence: Confidence = "low"
     suggested_next_steps: list[str] = Field(

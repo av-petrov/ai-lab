@@ -244,8 +244,10 @@ class PodLogsTool(_ObsTool):
     name: str = "pod_logs"
     description: str = (
         "Step 4 (only if events/status do not explain the failure). Tail of a container's logs for a pod "
-        "in the app's tree. Set previous=true for CrashLoopBackOff to see why the last instance died. "
-        "Output is tail-limited and secrets in log lines are redacted. Cite exact lines as evidence.")
+        "in the app's tree. Set previous=true for CrashLoopBackOff to see why the last instance died; if the "
+        "runtime already removed that instance, the tool falls back to the current (usually just-crashed) "
+        "instance and says so in 'note'. Output is tail-limited and secrets in log lines are redacted. "
+        "Cite exact lines as evidence.")
     args_schema: Type[BaseModel] = LogsInput
 
     @_guarded
@@ -254,15 +256,42 @@ class PodLogsTool(_ObsTool):
         ctx = self._ctx
         s = ctx.settings
         tail = max(1, min(tail_lines or s.log_tail_lines, s.log_tail_max))
-        container, text, extra = ctx.backend.pod_logs(app_name, pod, namespace, container, tail, previous)
+        note = None
+        try:
+            used_container, text, extra = ctx.backend.pod_logs(app_name, pod, namespace, container, tail, previous)
+            if previous and _logs_unavailable(text):
+                raise RuntimeError(text.strip()[:200])
+        except (ReadOnlyViolation, ScopeError):
+            raise
+        except Exception as exc:  # noqa: BLE001
+            if not previous:
+                raise
+            # Fast-crashing containers: the runtime often removes the previous instance. The kubelet then
+            # answers "unable to retrieve container logs ..." (HTTP 200, as if it were log text) and the
+            # Argo CD API turns that into HTTP 500 ("parsing time \"unable\" ..."). The current instance
+            # of a CrashLoopBackOff container is the latest crashed run, so its logs answer the question.
+            note = (f"previous-instance logs unavailable ({str(exc)[:160]}); showing the current instance "
+                    "instead, which in CrashLoopBackOff is the most recent crashed run (see container_states)")
+            previous = False
+            used_container, text, extra = ctx.backend.pod_logs(app_name, pod, namespace, container, tail, False)
         ctx.ledger.use(ctx.primary_source + " (logs)")
         text = redact_text(keep_last_lines(text, tail))
         text = truncate_text(text, max(1000, s.max_tool_output_chars - 2500), keep="tail")
         states = [{k: c.get(k) for k in ("container", "state", "reason", "exit_code", "restart_count", "last_terminated")
                    if c.get(k) is not None} for c in extra["containers"]]
-        return {"pod": f"{namespace or '-'}/{pod}", "container": container, "previous": previous,
-                "tail_lines": tail, "container_states": states,
-                "lines": text or "(no log output)"}
+        out = {"pod": f"{namespace or '-'}/{pod}", "container": used_container, "previous": previous,
+               "tail_lines": tail, "container_states": states,
+               "lines": text or "(no log output)"}
+        if note:
+            out["note"] = note
+        return out
+
+
+def _logs_unavailable(text: str) -> bool:
+    """Kubelet error text returned in place of logs (kube backend: HTTP 200 with this body)."""
+    head = text.strip()[:300].lower()
+    return head.startswith("unable to retrieve container logs") or (
+        "previous terminated container" in head and "not found" in head)
 
 
 # =========================================================================== metrics
