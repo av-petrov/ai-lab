@@ -25,11 +25,14 @@ def load_yaml(name: str) -> dict[str, Any]:
     return yaml.safe_load((CONFIG_DIR / name).read_text())
 
 
+AGENT_NAME = "argocd_observability"   # per-agent LLM override: SRE_LLM_PROFILE_ARGOCD_OBSERVABILITY
+
+
 def build_llm(settings: ObservabilitySettings) -> LLM | None:
-    """LiteLLM model string from MODEL / CREWAI_LLM; None -> CrewAI's default model."""
-    if not settings.model:
-        return None
-    return LLM(model=settings.model, temperature=settings.temperature)
+    """The crew-wide LLM profile for this agent (sre_common.llm); None -> CrewAI's default model."""
+    from sre_common.llm import build_llm as build_crew_llm
+
+    return build_crew_llm(AGENT_NAME, settings.llm_profile, default_temperature=settings.temperature)
 
 
 def build_argocd_observability_agent(
@@ -45,7 +48,7 @@ def build_argocd_observability_agent(
     Args:
         config: settings (default: from env / .env).
         context: pre-built runtime context (e.g. to share one backend between agents or for tests).
-        llm: explicit LLM (overrides ``config.model``).
+        llm: explicit LLM (overrides the crew-wide profile from sre_common.llm).
         agent_overrides: any other ``crewai.Agent`` field (e.g. ``max_iter``, ``step_callback``).
     """
     settings = config or (context.settings if context else ObservabilitySettings())

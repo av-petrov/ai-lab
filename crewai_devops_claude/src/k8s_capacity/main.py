@@ -155,16 +155,25 @@ def doctor(kube_context: str | None) -> int:
     def line(status: str, what: str, detail: str = "") -> None:
         print(f"[{status:4}] {what}{(': ' + detail) if detail else ''}")
 
-    # 1. env
-    model = os.getenv("CREWAI_LLM")
-    key = os.getenv("OPENAI_API_KEY")
-    line("OK" if model else "WARN", "CREWAI_LLM", model or "not set -> CrewAI default model")
-    line("OK" if key else "FAIL", "OPENAI_API_KEY", f"set ({key[:5]}...{key[-4:]})" if key else "not set")
-    if os.getenv("OPENAI_API_BASE") or os.getenv("OPENAI_BASE_URL"):
-        line("INFO", "custom endpoint", os.getenv("OPENAI_API_BASE") or os.getenv("OPENAI_BASE_URL"))
-    for v in ("CREWAI_LLM_ANALYST", "CREWAI_LLM_LEAD"):
-        if os.getenv(v):
-            line("INFO", v, os.getenv(v))
+    # 1. env: crew-wide LLM profiles (sre_common.llm), legacy CREWAI_LLM* when no profile is set
+    from sre_common.llm import defined_profiles, load_env, resolve_profile
+
+    env = load_env()
+    line("INFO", "SRE_LLM_PROFILE", env.get("SRE_LLM_PROFILE") or "not set (legacy CREWAI_LLM* variables)")
+    if defined_profiles(env):
+        line("INFO", "defined profiles", ", ".join(defined_profiles(env)))
+    lead = None
+    for var in ("CREWAI_LLM_ANALYST", "CREWAI_LLM_LEAD"):
+        role = var.removeprefix("CREWAI_LLM_").lower()
+        try:
+            p = resolve_profile(f"k8s_capacity_{role}", legacy_model_vars=(var, "CREWAI_LLM"))
+        except ValueError as exc:
+            line("FAIL", f"LLM for {role}", str(exc))
+            return 1
+        line("OK" if p else "WARN", f"LLM for {role}", p.describe() if p else "not set -> CrewAI default model")
+        lead = p if role == "lead" else lead
+    key = (lead.api_key if lead else None) or os.getenv("OPENAI_API_KEY")
+    line("OK" if key else "FAIL", "API key", "set" if key else "not set (profile _API_KEY or OPENAI_API_KEY)")
     ok &= bool(key)
 
     # 2. plain call

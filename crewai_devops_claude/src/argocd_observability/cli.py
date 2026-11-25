@@ -32,6 +32,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--project", help="limit --all to an Argo CD project")
     p.add_argument("--mode", choices=["auto", "kube", "argocd"], help="auth mode (default: ARGOCD_OBS_AUTH_MODE or auto)")
     p.add_argument("--no-llm", action="store_true", help="deterministic rule-based triage, no LLM calls")
+    p.add_argument("--llm-profile", metavar="NAME",
+                   help="crew-wide LLM profile to use (SRE_LLM_<NAME>_*), e.g. local or openai "
+                        "(default: SRE_LLM_PROFILE_ARGOCD_OBSERVABILITY, then SRE_LLM_PROFILE)")
     p.add_argument("--out-dir", default=None, help="write report.json and report.md here (default: runs/argocd-<ts>)")
     p.add_argument("--no-save", action="store_true", help="do not write report files")
     p.add_argument("--format", choices=["md", "json"], default="md", help="stdout format")
@@ -55,9 +58,21 @@ def main(argv: list[str] | None = None) -> int:
     from .context import create_context, finalize_report
     from .settings import ObservabilitySettings
 
-    overrides = {"auth_mode": args.mode} if args.mode else {}
+    from sre_common.llm import resolve_profile
+
+    from .agent import AGENT_NAME
+
+    overrides: dict = {"auth_mode": args.mode} if args.mode else {}
+    if args.llm_profile:
+        overrides["llm_profile"] = args.llm_profile
     try:
         settings = ObservabilitySettings(**overrides)
+        llm_profile = None if args.no_llm else resolve_profile(AGENT_NAME, settings.llm_profile)
+    except ValueError as exc:  # undefined profile: fail before touching the cluster
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    llm_desc = "none (--no-llm)" if args.no_llm else (llm_profile.describe() if llm_profile else "CrewAI default model")
+    try:
         ctx = create_context(settings)
     except Exception as exc:  # noqa: BLE001
         print(f"error: cannot initialise backend: {exc}", file=sys.stderr)
@@ -65,8 +80,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check:
         rep = ctx.access_report()
+        rep["llm"] = llm_desc
         print(json.dumps(rep, indent=2, default=str))
         return 0
+    print(f"[llm: {llm_desc}]", file=sys.stderr)
 
     scope = Scope(apps=args.app or [], project=args.project, all=bool(args.all))
     try:

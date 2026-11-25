@@ -20,9 +20,15 @@ NOW = "2026-11-24T05:00:00Z"
 
 
 @pytest.fixture(autouse=True)
-def _env(monkeypatch):
-    for k in ("ARGOCD_SERVER", "ARGOCD_AUTH_TOKEN", "PROMETHEUS_URL", "ARGOCD_OBS_AUTH_MODE", "MODEL"):
+def _env(monkeypatch, tmp_path):
+    import os
+
+    for k in ("ARGOCD_SERVER", "ARGOCD_AUTH_TOKEN", "PROMETHEUS_URL", "ARGOCD_OBS_AUTH_MODE", "MODEL", "CREWAI_LLM",
+              "OPENAI_API_BASE", "OPENAI_BASE_URL"):
         monkeypatch.delenv(k, raising=False)
+    for k in [k for k in os.environ if k.startswith("SRE_LLM_")]:
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.chdir(tmp_path)  # hermetic: never read the developer's .env
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key-000000")
     monkeypatch.setenv("CREWAI_DISABLE_TELEMETRY", "true")
     monkeypatch.setenv("OTEL_SDK_DISABLED", "true")

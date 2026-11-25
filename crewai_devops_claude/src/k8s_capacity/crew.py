@@ -9,8 +9,6 @@ Process.sequential, not hierarchical:
 
 from __future__ import annotations
 
-import os
-
 from crewai import LLM, Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 
@@ -34,12 +32,13 @@ MODE_TASKS = {
 
 
 def _llm(env_var: str) -> LLM | None:
-    """Model from env (e.g. CREWAI_LLM=openai/gpt-4.1 behind a LiteLLM proxy via OPENAI_API_BASE).
-    None -> CrewAI default model."""
-    model = os.getenv(env_var) or os.getenv("CREWAI_LLM")
-    if not model:
-        return None
-    return LLM(model=model, temperature=0.1)
+    """Crew-wide LLM profile (sre_common.llm): SRE_LLM_PROFILE, or per role SRE_LLM_PROFILE_K8S_CAPACITY_ANALYST /
+    SRE_LLM_PROFILE_K8S_CAPACITY_LEAD. Without a profile the legacy variables still work (CREWAI_LLM_ANALYST /
+    CREWAI_LLM_LEAD, then CREWAI_LLM, endpoint from OPENAI_API_BASE). None -> CrewAI default model."""
+    from sre_common.llm import build_llm
+
+    role = env_var.removeprefix("CREWAI_LLM_").lower() or "default"
+    return build_llm(f"k8s_capacity_{role}", legacy_model_vars=(env_var, "CREWAI_LLM"), default_temperature=0.1)
 
 
 def _agent_kwargs(env_var: str) -> dict:

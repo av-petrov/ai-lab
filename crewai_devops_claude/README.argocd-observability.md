@@ -50,9 +50,39 @@ uv sync --extra dev        # or: python -m venv .venv && .venv/bin/pip install -
 cp .env.example .env       # set MODEL (or CREWAI_LLM) and the provider key, e.g. OPENAI_API_KEY / ANTHROPIC_API_KEY
 ```
 
-The LLM is never hard-coded. `MODEL` (falling back to `CREWAI_LLM`) is a LiteLLM model string such as
-`anthropic/claude-sonnet-5-5` or `openai/gpt-4o-mini`. Credentials stay in the provider's usual env vars, and
-`OPENAI_API_BASE` works for a LiteLLM proxy. If neither is set, CrewAI's default model is used.
+### LLM: crew-wide profiles (`sre_common.llm`)
+
+The model isn't configured per agent. Every agent of the SRE crew (`argocd-observe`, both `k8s-capacity` roles,
+future agents) takes its LLM from named profiles, and one variable switches between them:
+```
+SRE_LLM_PROFILE=local                           # or openai, or any profile you define
+
+SRE_LLM_LOCAL_MODEL=openai/<model-id>           # id exactly as listed by GET <base>/v1/models
+SRE_LLM_LOCAL_BASE_URL=https://<host>/v1
+SRE_LLM_LOCAL_API_KEY=...
+SRE_LLM_LOCAL_CONTEXT_WINDOW=262144             # the model's max_input_tokens
+SRE_LLM_LOCAL_TIMEOUT=300
+
+SRE_LLM_OPENAI_MODEL=openai/gpt-4o-mini         # key from OPENAI_API_KEY
+```
+- **Per agent:** `SRE_LLM_PROFILE_ARGOCD_OBSERVABILITY=openai`, `SRE_LLM_PROFILE_K8S_CAPACITY_LEAD=...`.
+- **For one run:** `argocd-observe --llm-profile local ...`.
+- **To see what's selected:** `argocd-observe --check` (field `llm`) and `k8s-capacity doctor`. The doctor also
+  tests a plain call and tool calling, which is a quick way to check a new local model.
+- **An undefined profile** stops the run before any cluster or LLM call, and the error lists the defined profiles.
+- **Without a profile,** the old variables still work: `MODEL` / `CREWAI_LLM` (+ `OPENAI_API_BASE`), and
+  `CREWAI_LLM_ANALYST` / `CREWAI_LLM_LEAD` for `k8s-capacity`.
+
+Local / OpenAI-compatible models:
+- **The base URL goes through the profile.** CrewAI 1.15 routes an unknown `openai/<model>` to its native
+  OpenAI client only when `base_url` is passed in code; `OPENAI_API_BASE` alone makes it fall back to LiteLLM,
+  which isn't installed here.
+- **Set the context window.** CrewAI assumes 8192 tokens for models it doesn't know, so the agent would start
+  summarizing its history after a few tool calls.
+- **The model needs function calling.** On vLLM, serve it with `--enable-auto-tool-choice` and a tool parser.
+- **Turn thinking off if possible** (e.g. Qwen3 `enable_thinking=false`). Raw `<think>` text in the final answer
+  can break the structured `ArgoCDHealthReport` output.
+- **Self-signed certificate:** Python doesn't use the macOS keychain. Point `SSL_CERT_FILE` at your CA bundle.
 
 ### Mode 1: kube current-context (`ARGOCD_OBS_AUTH_MODE=kube`)
 

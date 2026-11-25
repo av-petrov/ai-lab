@@ -48,10 +48,10 @@ class ObservabilitySettings(BaseSettings):
     progressing_threshold_minutes: int = Field(
         10, ge=1, validation_alias=AliasChoices("ARGOCD_OBS_PROGRESSING_THRESHOLD_MINUTES", "progressing_threshold_minutes"))
 
-    # --- LLM / agent ------------------------------------------------------------------
-    # LiteLLM model string, e.g. "anthropic/claude-sonnet-5-5" or "openai/gpt-4o-mini".
-    # None -> CrewAI default model. Provider credentials stay in their usual env vars.
-    model: str | None = Field(None, validation_alias=AliasChoices("MODEL", "CREWAI_LLM", "model"))
+    # --- agent ------------------------------------------------------------------------
+    # The LLM itself (model, endpoint, key, context window) is crew-wide: see sre_common.llm (SRE_LLM_PROFILE,
+    # SRE_LLM_<PROFILE>_*, per-agent SRE_LLM_PROFILE_ARGOCD_OBSERVABILITY). Only an explicit override lives here.
+    llm_profile: str | None = None    # set by --llm-profile; None -> SRE_LLM_PROFILE_ARGOCD_OBSERVABILITY / SRE_LLM_PROFILE
     temperature: float = Field(0.1, validation_alias=AliasChoices("ARGOCD_OBS_TEMPERATURE", "temperature"))
     max_iter: int = Field(25, ge=3, validation_alias=AliasChoices("ARGOCD_OBS_MAX_ITER", "max_iter"))
     max_execution_time: int | None = Field(
