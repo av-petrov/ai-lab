@@ -1,0 +1,18 @@
+# AdmissionSpec: new app with one-per-node anti-affinity and maxUnavailable 0.
+# On a kind cluster with fewer workers than replicas+1 this shows the rollout deadlock.
+name: capacity-demo
+namespace: default
+kind: Deployment
+change_type: new
+replicas: 2
+labels: {app: capacity-demo}
+containers:
+  - name: app
+    requests: {cpu: 250m, memory: 256Mi}
+    limits: {memory: 256Mi}
+strategy: {type: RollingUpdate, max_surge: 1, max_unavailable: 0}
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector: {matchLabels: {app: capacity-demo}}
+        topologyKey: kubernetes.io/hostname

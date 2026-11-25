@@ -1,0 +1,75 @@
+# Read-only identity for mode 1 (kube) and for in-cluster runs of the argocd-observability agent.
+# No Secrets, no exec/attach/port-forward, no write verbs.
+#   kubectl apply -f deploy/kube-readonly/rbac.yaml        (you run this; it changes the cluster)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-observer
+  namespace: argocd
+  labels: {app.kubernetes.io/name: argocd-observer, app.kubernetes.io/part-of: sre-crew}
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-observer-read
+  labels: {app.kubernetes.io/name: argocd-observer, app.kubernetes.io/part-of: sre-crew}
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications, appprojects, applicationsets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods, pods/log, events, services, endpoints, configmaps, persistentvolumeclaims, namespaces, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [get, list, watch]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods, nodes]
+    verbs: [get, list]
+  - apiGroups: [apiregistration.k8s.io]
+    resources: [apiservices]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-observer-read
+  labels: {app.kubernetes.io/name: argocd-observer, app.kubernetes.io/part-of: sre-crew}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: argocd-observer-read}
+subjects:
+  - {kind: ServiceAccount, name: argocd-observer, namespace: argocd}
+---
+# Scrape Argo CD's own /metrics through the API server proxy (GET only, argocd namespace only).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-observer-metrics-proxy
+  namespace: argocd
+  labels: {app.kubernetes.io/name: argocd-observer, app.kubernetes.io/part-of: sre-crew}
+rules:
+  - apiGroups: [""]
+    resources: [pods/proxy, services/proxy]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-observer-metrics-proxy
+  namespace: argocd
+  labels: {app.kubernetes.io/name: argocd-observer, app.kubernetes.io/part-of: sre-crew}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: argocd-observer-metrics-proxy}
+subjects:
+  - {kind: ServiceAccount, name: argocd-observer, namespace: argocd}

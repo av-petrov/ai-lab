@@ -1,0 +1,1472 @@
+{
+ "schema": "k8s-capacity-snapshot/v1",
+ "meta": {
+  "cluster": "demo",
+  "collected_at": "2026-11-19T08:00:00Z",
+  "kubernetes_version": "v1.31.4",
+  "sources": [
+   "fixture"
+  ],
+  "pool_label": "node.kubernetes.io/pool",
+  "ipam": {
+   "mode": "podcidr",
+   "reserved_per_cidr": 3
+  }
+ },
+ "namespaces": [
+  {
+   "name": "kube-system",
+   "labels": {
+    "kubernetes.io/metadata.name": "kube-system"
+   }
+  },
+  {
+   "name": "monitoring",
+   "labels": {
+    "kubernetes.io/metadata.name": "monitoring"
+   }
+  },
+  {
+   "name": "shop",
+   "labels": {
+    "kubernetes.io/metadata.name": "shop"
+   }
+  },
+  {
+   "name": "data",
+   "labels": {
+    "kubernetes.io/metadata.name": "data"
+   }
+  },
+  {
+   "name": "batch",
+   "labels": {
+    "kubernetes.io/metadata.name": "batch"
+   }
+  },
+  {
+   "name": "dev",
+   "labels": {
+    "kubernetes.io/metadata.name": "dev"
+   }
+  },
+  {
+   "name": "analytics",
+   "labels": {
+    "kubernetes.io/metadata.name": "analytics"
+   }
+  }
+ ],
+ "nodes": [
+  {
+   "name": "w1",
+   "labels": {
+    "kubernetes.io/hostname": "w1",
+    "node.kubernetes.io/pool": "general",
+    "topology.kubernetes.io/zone": "zone-a",
+    "node.kubernetes.io/instance-type": "m5.xlarge"
+   },
+   "taints": [],
+   "unschedulable": false,
+   "ready": true,
+   "capacity": {
+    "cpu": "4",
+    "memory": "16Gi",
+    "pods": "110",
+    "ephemeral-storage": "100Gi"
+   },
+   "allocatable": {
+    "cpu": "3800m",
+    "memory": "14.5Gi",
+    "pods": "110",
+    "ephemeral-storage": "90Gi"
+   },
+   "pod_cidrs": [
+    "10.244.1.0/24"
+   ],
+   "csi_limits": {
+    "ebs.csi.aws.com": 25
+   },
+   "instance_type": "m5.xlarge"
+  },
+  {
+   "name": "w2",
+   "labels": {
+    "kubernetes.io/hostname": "w2",
+    "node.kubernetes.io/pool": "general",
+    "topology.kubernetes.io/zone": "zone-b",
+    "node.kubernetes.io/instance-type": "m5.xlarge"
+   },
+   "taints": [],
+   "unschedulable": false,
+   "ready": true,
+   "capacity": {
+    "cpu": "4",
+    "memory": "16Gi",
+    "pods": "110",
+    "ephemeral-storage": "100Gi"
+   },
+   "allocatable": {
+    "cpu": "3800m",
+    "memory": "14.5Gi",
+    "pods": "110",
+    "ephemeral-storage": "90Gi"
+   },
+   "pod_cidrs": [
+    "10.244.2.0/24"
+   ],
+   "csi_limits": {
+    "ebs.csi.aws.com": 25
+   },
+   "instance_type": "m5.xlarge"
+  },
+  {
+   "name": "w3",
+   "labels": {
+    "kubernetes.io/hostname": "w3",
+    "node.kubernetes.io/pool": "general",
+    "topology.kubernetes.io/zone": "zone-c",
+    "node.kubernetes.io/instance-type": "m5.xlarge"
+   },
+   "taints": [],
+   "unschedulable": false,
+   "ready": true,
+   "capacity": {
+    "cpu": "4",
+    "memory": "16Gi",
+    "pods": "110",
+    "ephemeral-storage": "100Gi"
+   },
+   "allocatable": {
+    "cpu": "3800m",
+    "memory": "14.5Gi",
+    "pods": "110",
+    "ephemeral-storage": "90Gi"
+   },
+   "pod_cidrs": [
+    "10.244.3.0/24"
+   ],
+   "csi_limits": {
+    "ebs.csi.aws.com": 25
+   },
+   "instance_type": "m5.xlarge"
+  },
+  {
+   "name": "g1",
+   "labels": {
+    "kubernetes.io/hostname": "g1",
+    "node.kubernetes.io/pool": "highmem",
+    "topology.kubernetes.io/zone": "zone-a",
+    "node.kubernetes.io/instance-type": "r5.2xlarge"
+   },
+   "taints": [
+    {
+     "key": "dedicated",
+     "value": "highmem",
+     "effect": "NoSchedule"
+    }
+   ],
+   "unschedulable": false,
+   "ready": true,
+   "capacity": {
+    "cpu": "8",
+    "memory": "64Gi",
+    "pods": "110",
+    "ephemeral-storage": "100Gi"
+   },
+   "allocatable": {
+    "cpu": "7800m",
+    "memory": "60Gi",
+    "pods": "110",
+    "ephemeral-storage": "90Gi"
+   },
+   "pod_cidrs": [
+    "10.244.4.0/24"
+   ],
+   "csi_limits": {
+    "ebs.csi.aws.com": 25
+   },
+   "instance_type": "r5.2xlarge"
+  }
+ ],
+ "pods": [
+  {
+   "metadata": {
+    "name": "node-exporter-w1",
+    "namespace": "monitoring",
+    "labels": {
+     "app": "node-exporter"
+    },
+    "ownerReferences": [
+     {
+      "kind": "DaemonSet",
+      "name": "node-exporter",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w1",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+       }
+      },
+      "ports": [
+       {
+        "containerPort": 9100,
+        "hostPort": 9100,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ],
+    "tolerations": [
+     {
+      "operator": "Exists"
+     }
+    ],
+    "priorityClassName": "system-node-critical"
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "node-exporter-w2",
+    "namespace": "monitoring",
+    "labels": {
+     "app": "node-exporter"
+    },
+    "ownerReferences": [
+     {
+      "kind": "DaemonSet",
+      "name": "node-exporter",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w2",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+       }
+      },
+      "ports": [
+       {
+        "containerPort": 9100,
+        "hostPort": 9100,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ],
+    "tolerations": [
+     {
+      "operator": "Exists"
+     }
+    ],
+    "priorityClassName": "system-node-critical"
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "node-exporter-w3",
+    "namespace": "monitoring",
+    "labels": {
+     "app": "node-exporter"
+    },
+    "ownerReferences": [
+     {
+      "kind": "DaemonSet",
+      "name": "node-exporter",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w3",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+       }
+      },
+      "ports": [
+       {
+        "containerPort": 9100,
+        "hostPort": 9100,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ],
+    "tolerations": [
+     {
+      "operator": "Exists"
+     }
+    ],
+    "priorityClassName": "system-node-critical"
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "node-exporter-g1",
+    "namespace": "monitoring",
+    "labels": {
+     "app": "node-exporter"
+    },
+    "ownerReferences": [
+     {
+      "kind": "DaemonSet",
+      "name": "node-exporter",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "g1",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "100m",
+        "memory": "128Mi"
+       }
+      },
+      "ports": [
+       {
+        "containerPort": 9100,
+        "hostPort": 9100,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ],
+    "tolerations": [
+     {
+      "operator": "Exists"
+     }
+    ],
+    "priorityClassName": "system-node-critical"
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "coredns-5d78c-0",
+    "namespace": "kube-system",
+    "labels": {
+     "k8s-app": "kube-dns"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "coredns-5d78c",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w1",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "100m",
+        "memory": "70Mi"
+       },
+       "limits": {
+        "memory": "170Mi"
+       }
+      }
+     }
+    ],
+    "priorityClassName": "system-cluster-critical"
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "coredns-5d78c-1",
+    "namespace": "kube-system",
+    "labels": {
+     "k8s-app": "kube-dns"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "coredns-5d78c",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w2",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "100m",
+        "memory": "70Mi"
+       },
+       "limits": {
+        "memory": "170Mi"
+       }
+      }
+     }
+    ],
+    "priorityClassName": "system-cluster-critical"
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "api-7f9c-0",
+    "namespace": "shop",
+    "labels": {
+     "app": "api"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "api-7f9c",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w1",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+       },
+       "limits": {
+        "memory": "1Gi"
+       }
+      }
+     }
+    ],
+    "affinity": {
+     "podAntiAffinity": {
+      "requiredDuringSchedulingIgnoredDuringExecution": [
+       {
+        "labelSelector": {
+         "matchLabels": {
+          "app": "api"
+         }
+        },
+        "topologyKey": "kubernetes.io/hostname"
+       }
+      ]
+     }
+    }
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "api-7f9c-1",
+    "namespace": "shop",
+    "labels": {
+     "app": "api"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "api-7f9c",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w2",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+       },
+       "limits": {
+        "memory": "1Gi"
+       }
+      }
+     }
+    ],
+    "affinity": {
+     "podAntiAffinity": {
+      "requiredDuringSchedulingIgnoredDuringExecution": [
+       {
+        "labelSelector": {
+         "matchLabels": {
+          "app": "api"
+         }
+        },
+        "topologyKey": "kubernetes.io/hostname"
+       }
+      ]
+     }
+    }
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "api-7f9c-2",
+    "namespace": "shop",
+    "labels": {
+     "app": "api"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "api-7f9c",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w3",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "500m",
+        "memory": "1Gi"
+       },
+       "limits": {
+        "memory": "1Gi"
+       }
+      }
+     }
+    ],
+    "affinity": {
+     "podAntiAffinity": {
+      "requiredDuringSchedulingIgnoredDuringExecution": [
+       {
+        "labelSelector": {
+         "matchLabels": {
+          "app": "api"
+         }
+        },
+        "topologyKey": "kubernetes.io/hostname"
+       }
+      ]
+     }
+    }
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "web-55d-0",
+    "namespace": "shop",
+    "labels": {
+     "app": "web"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "web-55d",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w1",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "1",
+        "memory": "2Gi"
+       },
+       "limits": {
+        "memory": "4Gi"
+       }
+      }
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "web-55d-1",
+    "namespace": "shop",
+    "labels": {
+     "app": "web"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "web-55d",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w2",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "1",
+        "memory": "2Gi"
+       },
+       "limits": {
+        "memory": "4Gi"
+       }
+      }
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "worker-66b-0",
+    "namespace": "shop",
+    "labels": {
+     "app": "worker"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "worker-66b",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w3",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "600m",
+        "memory": "1Gi"
+       },
+       "limits": {
+        "memory": "2Gi"
+       }
+      }
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "worker-66b-1",
+    "namespace": "shop",
+    "labels": {
+     "app": "worker"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "worker-66b",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w3",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "600m",
+        "memory": "1Gi"
+       },
+       "limits": {
+        "memory": "2Gi"
+       }
+      }
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "postgres-0",
+    "namespace": "data",
+    "labels": {
+     "app": "postgres"
+    },
+    "ownerReferences": [
+     {
+      "kind": "StatefulSet",
+      "name": "postgres",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w3",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "1",
+        "memory": "4Gi"
+       },
+       "limits": {
+        "memory": "4Gi"
+       }
+      }
+     }
+    ],
+    "volumes": [
+     {
+      "name": "data",
+      "persistentVolumeClaim": {
+       "claimName": "data-postgres-0"
+      }
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "report-9d1-0",
+    "namespace": "batch",
+    "labels": {
+     "app": "report"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "report-9d1",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "w2",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "800m",
+        "memory": "2Gi"
+       }
+      }
+     }
+    ],
+    "priorityClassName": "low"
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "debug",
+    "namespace": "dev",
+    "labels": {
+     "run": "debug"
+    }
+   },
+   "spec": {
+    "nodeName": "w1",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {}
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running"
+   }
+  },
+  {
+   "metadata": {
+    "name": "spark-2c4-0",
+    "namespace": "analytics",
+    "labels": {
+     "app": "spark"
+    },
+    "ownerReferences": [
+     {
+      "kind": "ReplicaSet",
+      "name": "spark-2c4",
+      "controller": true
+     }
+    ]
+   },
+   "spec": {
+    "nodeName": "g1",
+    "containers": [
+     {
+      "name": "main",
+      "resources": {
+       "requests": {
+        "cpu": "4",
+        "memory": "32Gi"
+       },
+       "limits": {
+        "memory": "32Gi"
+       }
+      }
+     }
+    ],
+    "tolerations": [
+     {
+      "key": "dedicated",
+      "operator": "Equal",
+      "value": "highmem",
+      "effect": "NoSchedule"
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running"
+   }
+  }
+ ],
+ "workloads": [
+  {
+   "kind": "DaemonSet",
+   "metadata": {
+    "name": "node-exporter",
+    "namespace": "monitoring"
+   },
+   "spec": {
+    "selector": {
+     "matchLabels": {
+      "app": "node-exporter"
+     }
+    },
+    "updateStrategy": {
+     "type": "RollingUpdate",
+     "rollingUpdate": {
+      "maxUnavailable": 1
+     }
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "app": "node-exporter"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "100m",
+          "memory": "128Mi"
+         }
+        },
+        "ports": [
+         {
+          "containerPort": 9100,
+          "hostPort": 9100
+         }
+        ]
+       }
+      ],
+      "tolerations": [
+       {
+        "operator": "Exists"
+       }
+      ],
+      "priorityClassName": "system-node-critical"
+     }
+    }
+   }
+  },
+  {
+   "kind": "Deployment",
+   "metadata": {
+    "name": "coredns",
+    "namespace": "kube-system",
+    "labels": {
+     "k8s-app": "kube-dns"
+    }
+   },
+   "spec": {
+    "replicas": 2,
+    "selector": {
+     "matchLabels": {
+      "k8s-app": "kube-dns"
+     }
+    },
+    "strategy": {
+     "type": "RollingUpdate",
+     "rollingUpdate": {
+      "maxSurge": "25%",
+      "maxUnavailable": 1
+     }
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "k8s-app": "kube-dns"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "100m",
+          "memory": "70Mi"
+         }
+        }
+       }
+      ],
+      "priorityClassName": "system-cluster-critical"
+     }
+    }
+   }
+  },
+  {
+   "kind": "Deployment",
+   "metadata": {
+    "name": "api",
+    "namespace": "shop",
+    "labels": {
+     "app": "api"
+    }
+   },
+   "spec": {
+    "replicas": 3,
+    "selector": {
+     "matchLabels": {
+      "app": "api"
+     }
+    },
+    "strategy": {
+     "type": "RollingUpdate",
+     "rollingUpdate": {
+      "maxSurge": 1,
+      "maxUnavailable": 0
+     }
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "app": "api"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "500m",
+          "memory": "1Gi"
+         }
+        }
+       }
+      ],
+      "affinity": {
+       "podAntiAffinity": {
+        "requiredDuringSchedulingIgnoredDuringExecution": [
+         {
+          "labelSelector": {
+           "matchLabels": {
+            "app": "api"
+           }
+          },
+          "topologyKey": "kubernetes.io/hostname"
+         }
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "kind": "Deployment",
+   "metadata": {
+    "name": "web",
+    "namespace": "shop",
+    "labels": {
+     "app": "web"
+    }
+   },
+   "spec": {
+    "replicas": 2,
+    "selector": {
+     "matchLabels": {
+      "app": "web"
+     }
+    },
+    "strategy": {
+     "type": "RollingUpdate",
+     "rollingUpdate": {
+      "maxSurge": "25%",
+      "maxUnavailable": "25%"
+     }
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "app": "web"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "1",
+          "memory": "2Gi"
+         }
+        }
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "kind": "Deployment",
+   "metadata": {
+    "name": "worker",
+    "namespace": "shop",
+    "labels": {
+     "app": "worker"
+    }
+   },
+   "spec": {
+    "replicas": 2,
+    "selector": {
+     "matchLabels": {
+      "app": "worker"
+     }
+    },
+    "strategy": {
+     "type": "RollingUpdate",
+     "rollingUpdate": {
+      "maxSurge": "25%",
+      "maxUnavailable": "25%"
+     }
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "app": "worker"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "600m",
+          "memory": "1Gi"
+         }
+        }
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "kind": "Deployment",
+   "metadata": {
+    "name": "report",
+    "namespace": "batch",
+    "labels": {
+     "app": "report"
+    }
+   },
+   "spec": {
+    "replicas": 1,
+    "selector": {
+     "matchLabels": {
+      "app": "report"
+     }
+    },
+    "strategy": {
+     "type": "RollingUpdate",
+     "rollingUpdate": {
+      "maxSurge": 1,
+      "maxUnavailable": 0
+     }
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "app": "report"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "800m",
+          "memory": "2Gi"
+         }
+        }
+       }
+      ],
+      "priorityClassName": "low"
+     }
+    }
+   }
+  },
+  {
+   "kind": "Deployment",
+   "metadata": {
+    "name": "spark",
+    "namespace": "analytics",
+    "labels": {
+     "app": "spark"
+    }
+   },
+   "spec": {
+    "replicas": 1,
+    "selector": {
+     "matchLabels": {
+      "app": "spark"
+     }
+    },
+    "strategy": {
+     "type": "RollingUpdate",
+     "rollingUpdate": {
+      "maxSurge": 1,
+      "maxUnavailable": 0
+     }
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "app": "spark"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "4",
+          "memory": "32Gi"
+         }
+        }
+       }
+      ],
+      "tolerations": [
+       {
+        "key": "dedicated",
+        "operator": "Equal",
+        "value": "highmem",
+        "effect": "NoSchedule"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "kind": "StatefulSet",
+   "metadata": {
+    "name": "postgres",
+    "namespace": "data"
+   },
+   "spec": {
+    "replicas": 1,
+    "selector": {
+     "matchLabels": {
+      "app": "postgres"
+     }
+    },
+    "updateStrategy": {
+     "type": "RollingUpdate"
+    },
+    "template": {
+     "metadata": {
+      "labels": {
+       "app": "postgres"
+      }
+     },
+     "spec": {
+      "containers": [
+       {
+        "name": "main",
+        "resources": {
+         "requests": {
+          "cpu": "1",
+          "memory": "4Gi"
+         },
+         "limits": {
+          "memory": "4Gi"
+         }
+        }
+       }
+      ]
+     }
+    },
+    "volumeClaimTemplates": [
+     {
+      "metadata": {
+       "name": "data"
+      },
+      "spec": {
+       "storageClassName": "local-ssd",
+       "accessModes": [
+        "ReadWriteOnce"
+       ],
+       "resources": {
+        "requests": {
+         "storage": "100Gi"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "replicasets": [
+  {
+   "namespace": "kube-system",
+   "name": "coredns-5d78c",
+   "owner_kind": "Deployment",
+   "owner_name": "coredns"
+  },
+  {
+   "namespace": "shop",
+   "name": "api-7f9c",
+   "owner_kind": "Deployment",
+   "owner_name": "api"
+  },
+  {
+   "namespace": "shop",
+   "name": "web-55d",
+   "owner_kind": "Deployment",
+   "owner_name": "web"
+  },
+  {
+   "namespace": "shop",
+   "name": "worker-66b",
+   "owner_kind": "Deployment",
+   "owner_name": "worker"
+  },
+  {
+   "namespace": "batch",
+   "name": "report-9d1",
+   "owner_kind": "Deployment",
+   "owner_name": "report"
+  },
+  {
+   "namespace": "analytics",
+   "name": "spark-2c4",
+   "owner_kind": "Deployment",
+   "owner_name": "spark"
+  }
+ ],
+ "pdbs": [
+  {
+   "namespace": "shop",
+   "name": "api",
+   "selector": {
+    "matchLabels": {
+     "app": "api"
+    }
+   },
+   "min_available": 3,
+   "expected_pods": 3
+  }
+ ],
+ "quotas": [
+  {
+   "namespace": "shop",
+   "name": "shop-quota",
+   "hard": {
+    "requests.cpu": "10",
+    "requests.memory": "24Gi",
+    "pods": "20"
+   },
+   "used": {
+    "requests.cpu": "4700m",
+    "requests.memory": "9Gi",
+    "pods": "7"
+   }
+  }
+ ],
+ "limitranges": [
+  {
+   "namespace": "shop",
+   "name": "defaults",
+   "limits": [
+    {
+     "type": "Container",
+     "defaultRequest": {
+      "cpu": "100m",
+      "memory": "128Mi"
+     },
+     "default": {
+      "memory": "512Mi"
+     },
+     "max": {
+      "memory": "8Gi"
+     }
+    }
+   ]
+  }
+ ],
+ "priority_classes": [
+  {
+   "name": "system-node-critical",
+   "value": 2000001000
+  },
+  {
+   "name": "system-cluster-critical",
+   "value": 2000000000
+  },
+  {
+   "name": "low",
+   "value": -10,
+   "preemption_policy": "Never"
+  }
+ ],
+ "runtime_classes": [],
+ "storage_classes": [
+  {
+   "name": "gp3",
+   "provisioner": "ebs.csi.aws.com",
+   "volume_binding_mode": "WaitForFirstConsumer",
+   "default": true
+  },
+  {
+   "name": "local-ssd",
+   "provisioner": "kubernetes.io/no-provisioner",
+   "volume_binding_mode": "WaitForFirstConsumer"
+  }
+ ],
+ "pvs": [
+  {
+   "name": "local-pv-w3",
+   "storage_class": "local-ssd",
+   "capacity": "200Gi",
+   "local": true,
+   "claim": "data/data-postgres-0",
+   "phase": "Bound",
+   "node_affinity_terms": [
+    {
+     "matchExpressions": [
+      {
+       "key": "kubernetes.io/hostname",
+       "operator": "In",
+       "values": [
+        "w3"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "pvcs": [
+  {
+   "namespace": "data",
+   "name": "data-postgres-0",
+   "storage_class": "local-ssd",
+   "volume_name": "local-pv-w3",
+   "size": "100Gi",
+   "access_modes": [
+    "ReadWriteOnce"
+   ],
+   "phase": "Bound"
+  }
+ ],
+ "usage": {
+  "source": "fixture",
+  "window": "7d p95",
+  "pods": {
+   "shop/worker-66b-0": {
+    "cpu": "450m",
+    "memory": "1400Mi"
+   },
+   "shop/worker-66b-1": {
+    "cpu": "420m",
+    "memory": "1350Mi"
+   },
+   "shop/web-55d-0": {
+    "cpu": "300m",
+    "memory": "900Mi"
+   },
+   "analytics/spark-2c4-0": {
+    "cpu": "400m",
+    "memory": "6Gi"
+   }
+  }
+ },
+ "data_gaps": []
+}

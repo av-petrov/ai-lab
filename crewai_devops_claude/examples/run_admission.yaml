@@ -1,0 +1,30 @@
+# RunConfig for admission mode: new app "checkout" (2 x 1500m / 2Gi, surge 1, maxUnavailable 0).
+# Demo cluster: 4.4 free cores in pool general in total, but only w1 has >= 1.5 cores free.
+cluster_name: demo
+snapshot_file: tests/fixtures/demo_cluster.json
+update_concurrency: sequential
+require_n_minus_1: true
+require_update_reserve: true
+pool_label: node.kubernetes.io/pool
+ipam: {mode: podcidr, reserved_per_cidr: 3}
+admission:
+  name: checkout
+  namespace: shop
+  kind: Deployment
+  change_type: new
+  replicas: 2
+  labels: {app: checkout}
+  containers:
+    - name: app
+      requests: {cpu: 1500m, memory: 2Gi}
+      limits: {memory: 2Gi}
+  init_containers:
+    - name: migrate
+      requests: {cpu: 500m, memory: 256Mi}
+  strategy: {type: RollingUpdate, max_surge: 1, max_unavailable: 0}
+  topology_spread_constraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector: {matchLabels: {app: checkout}}
+  priority_class_name: null

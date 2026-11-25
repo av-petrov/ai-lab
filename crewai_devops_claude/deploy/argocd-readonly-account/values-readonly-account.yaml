@@ -1,0 +1,14 @@
+# Preferred for this cluster (Argo CD is installed with the argo-cd Helm chart):
+#   helm upgrade argocd argo/argo-cd -n argocd --reuse-values -f deploy/argocd-readonly-account/values-readonly-account.yaml
+# (or merge into the values file your GitOps/bootstrap uses). Creates a local account that can only
+# create API tokens for itself (no UI login) and binds it to the built-in role:readonly.
+configs:
+  cm:
+    accounts.sre-observer: apiKey
+    accounts.sre-observer.enabled: "true"
+  rbac:
+    policy.csv: |
+      # read-only SRE observer (argocd-observability agent)
+      g, sre-observer, role:readonly
+      # explicit, in case the built-in readonly role on your version does not include logs
+      p, sre-observer, logs, get, */*, allow

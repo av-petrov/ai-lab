@@ -1,0 +1,8 @@
+# Alternative to the Helm values (NOTE: a later `helm upgrade` overwrites manual patches).
+# WARNING: a merge patch REPLACES the whole policy.csv value. On kind-dev01 it is currently empty;
+# if yours is not, append these lines to the existing policy instead.
+#   kubectl -n argocd patch configmap argocd-rbac-cm --type merge --patch-file deploy/argocd-readonly-account/argocd-rbac-cm-patch.yaml
+data:
+  policy.csv: |
+    g, sre-observer, role:readonly
+    p, sre-observer, logs, get, */*, allow

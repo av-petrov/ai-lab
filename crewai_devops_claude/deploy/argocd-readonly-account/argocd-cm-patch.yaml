@@ -1,0 +1,5 @@
+# Alternative to the Helm values (NOTE: a later `helm upgrade` overwrites manual patches):
+#   kubectl -n argocd patch configmap argocd-cm --type merge --patch-file deploy/argocd-readonly-account/argocd-cm-patch.yaml
+data:
+  accounts.sre-observer: apiKey
+  accounts.sre-observer.enabled: "true"

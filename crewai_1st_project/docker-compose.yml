@@ -11,6 +11,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       CREWAI_LLM: ${CREWAI_LLM:-openai/gpt-4o-mini}
       KUBECONFIG: /kube/config
+      REDACTION_KEY: ${REDACTION_KEY}
 
     networks:
       - default

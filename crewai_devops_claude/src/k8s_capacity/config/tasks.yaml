@@ -1,0 +1,155 @@
+# Tasks. Real CrewAI input variables (the only curly-brace placeholders in this file):
+#   common:    cluster_name, environment_summary, update_concurrency, require_n_minus_1, autoscaler_summary
+#   admission: app_name, namespace, change_type, replicas, spec_summary
+# Do not put JSON with braces into descriptions: CrewAI would treat them as variables.
+
+# =============================================================================== AUDIT MODE
+audit_capacity_baseline:
+  description: >
+    Audit of cluster {cluster_name}. Environment: {environment_summary}.
+
+    1. Call collect_cluster_snapshot once. Review the inventory: pools and their taints, pods by QoS,
+    pending pods, nodes NotReady or cordoned, where the pod IP limit came from, usage source,
+    data_gaps. Anything unknown is a data gap, not a zero.
+    2. Call capacity_model (default reference pods, or the ones from the run config). For every pool
+    read: utilization by requests for each resource, the limiting resource for the reference pods,
+    fits_per_node_sum versus fits_if_perfectly_packed (fragmentation), largest free slots.
+    3. If a pool shows high fragmentation or a suspicious limiting resource, use simulate_placement
+    once or twice with a realistic pod size for that pool (with the pool's nodeSelector and
+    tolerations) to show the difference between the cluster-wide sum and per-node placement.
+    Do not compute anything yourself.
+  expected_output: >
+    Markdown with sections: Inventory and data gaps; Per-pool capacity table (pool, nodes, cpu,
+    memory, pods, pod-ips utilization by requests, limiting resource, headroom in reference pods,
+    fragmentation percent); Nodes that are the tightest (with their limiting resource); Hidden demand
+    (BestEffort, usage above requests, limits overcommit, quotas above 85 percent, pending pods);
+    What was not verified. Every number is copied from tool output and followed by its result_file.
+  agent: capacity_modeler
+
+audit_rollout_reserve:
+  description: >
+    Update reserve of cluster {cluster_name} under the concurrency model "{update_concurrency}".
+
+    1. Call rollout_reserve with the default model. Then call it once more with the "all" model to
+    show the upper bound (or "sequential" if the default already is "all").
+    2. For every infeasible group and every static deadlock explain the mechanism in operator terms
+    (which pod, why it has no node: anti-affinity, taint, insufficient resource, quota) and the
+    cheapest fix (maxUnavailable at least 1, relax required anti-affinity, free a slot of a given
+    size in a given pool).
+    3. Compare the analytic reserve with the simulated peak and explain the difference (topology,
+    workloads that progress only by dropping replicas).
+    4. Report DaemonSet surge headroom gaps per node.
+  expected_output: >
+    Markdown: required reserve per resource for the default model and for the upper-bound model;
+    whether it fits topologically; table of blocked or degraded workloads (workload, strategy,
+    maxSurge, maxUnavailable, status, blocking reason, fix); static deadlocks; DaemonSet gaps.
+    Numbers only from tool output, each with its result_file.
+  agent: resilience_analyst
+  context:
+    - audit_capacity_baseline
+
+audit_node_failure:
+  description: >
+    N-1 analysis of cluster {cluster_name}. N-1 requirement: {require_n_minus_1}.
+    Autoscaler: {autoscaler_summary}.
+
+    1. Call simulate_node_failure without arguments (all nodes for small clusters, otherwise the
+    most requested, largest and busiest node of every pool).
+    2. For each scenario separate: pods rescheduled without eviction; pods placed only by
+    preempting lower-priority pods (list the victims); pods left pending and why; pods lost (no
+    controller, static); local-PV pods that cannot move; PDBs that drop below desiredHealthy;
+    PDBs that block a voluntary drain of that node.
+    3. If an autoscaler is configured, state whether the node group can add the needed nodes within
+    its max, how long provisioning takes and what is unavailable until then.
+    4. If the result for a pool depends on one workload (for example one-per-node anti-affinity),
+    say so explicitly.
+  expected_output: >
+    Markdown: overall N-1 result and worst node; per-node table (node, pool, verdict, pending pods
+    with reasons, preempted victims, lost pods, local-PV pods, PDB effects, autoscaler recovery);
+    the root causes grouped across nodes. Numbers only from tool output with result_file.
+  agent: resilience_analyst
+  context:
+    - audit_capacity_baseline
+
+audit_report:
+  description: >
+    Final audit narrative for cluster {cluster_name}.
+
+    1. Call computed_risk_register once. It returns the summary and the risk register with
+    severities decided by code. Do not change ids, severities or numbers.
+    2. Using the three previous task outputs, write: an executive summary that answers the five
+    questions (can a new typical app be deployed now; are rolling updates guaranteed under the
+    model "{update_concurrency}"; how much reserve is needed; which resource limits growth per pool;
+    what a single node failure does); key findings with evidence_refs and confidence; additional
+    analyst risks only if they are NOT already in the register (source analyst); prioritized
+    actions that reference risk ids; assumptions; open questions for the platform team.
+    3. Write in Russian.
+  expected_output: >
+    An AuditNarrative object: executive_summary, key_findings (statement, evidence_refs,
+    confidence, assumptions), additional_risks, prioritized_actions, assumptions, open_questions.
+  agent: capacity_lead
+  context:
+    - audit_capacity_baseline
+    - audit_rollout_reserve
+    - audit_node_failure
+
+# =========================================================================== ADMISSION MODE
+admission_baseline:
+  description: >
+    Pre-deploy check of "{app_name}" in namespace "{namespace}" in cluster {cluster_name}
+    (change type: {change_type}, replicas: {replicas}).
+    Requested change: {spec_summary}.
+    Environment: {environment_summary}.
+
+    1. Call collect_cluster_snapshot once and list data gaps relevant to this change (unknown pod IP
+    limits, missing usage, storage classes with Immediate binding).
+    2. Call capacity_model and extract only what matters for the target nodes of this application:
+    the pools it can land on (nodeSelector, affinity, tolerations), their free capacity per node,
+    their limiting resource and fragmentation.
+    3. Call simulate_placement once with the per-pod requests, replicas, nodeSelector, tolerations
+    and one_per_node or one_per_zone matching the spec, to show node-by-node fit versus the naive
+    cluster-wide sum.
+  expected_output: >
+    Markdown: candidate pools and nodes with free capacity; per-node fit of the requested pods with
+    kubectl-style reasons for the ones that do not fit; whether the naive cluster sum would have
+    claimed a fit; data gaps relevant to this change. Numbers only from tool output with result_file.
+  agent: capacity_modeler
+
+admission_simulation:
+  description: >
+    Run the full admission simulation for "{app_name}" in "{namespace}" ({change_type}).
+    Update concurrency model: {update_concurrency}. N-1 requirement: {require_n_minus_1}.
+
+    1. Call simulate_admission once. It evaluates five checks: namespace_quota (ResourceQuota and
+    LimitRange, including surge pods), steady_state_placement, app_rollout (for resize: the rollout
+    of this change with old pods keeping old requests; for new or scale: the next rolling update
+    after deploy), others_update_reserve (regressions only), n_minus_1_after (regressions only).
+    2. For every check explain the status in operator terms, citing node names, pods and the
+    blocking reason from the tool output. Separate pre-existing problems from those caused by
+    this change.
+    3. If app_rollout is stuck, name the deadlock mechanism.
+  expected_output: >
+    Markdown: computed verdict; a table of the five checks (check, status, reason with nodes and
+    numbers from the tool, pre-existing or caused by this change); what was not verified.
+  agent: resilience_analyst
+  context:
+    - admission_baseline
+
+admission_verdict:
+  description: >
+    Final decision for "{app_name}" in "{namespace}" ({change_type}).
+
+    1. If the computed verdict from simulate_admission is not FITS, call search_remediations once
+    and pick the smallest option that reaches FITS (or FITS_WITH_CONDITIONS if nothing reaches FITS).
+    Explain its trade-off (fewer replicas means less redundancy, maxUnavailable means reduced
+    capacity during updates, another pool needs tolerations and may be reserved, new nodes cost money).
+    2. Produce the AdmissionNarrative. The verdict field MUST equal the computed verdict.
+    Explain each of the five checks exactly once. List conditions the operator must accept,
+    confidence and assumptions. Write in Russian.
+  expected_output: >
+    An AdmissionNarrative object: verdict (equal to the computed one), verdict_rationale, checks
+    (one explanation per check), recommended_change, conditions_for_operator, confidence, assumptions.
+  agent: capacity_lead
+  context:
+    - admission_baseline
+    - admission_simulation

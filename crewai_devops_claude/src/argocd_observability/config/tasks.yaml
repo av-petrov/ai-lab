@@ -1,0 +1,54 @@
+# Placeholders in [[double brackets]] are filled by the task factories in tasks.py (not by CrewAI
+# kickoff inputs), so these tasks can be added to any crew without passing inputs.
+
+health_overview:
+  description: >
+    Inspect Argo CD applications in scope: [[scope_description]].
+
+    1. Call argocd_access_check once and note the auth mode, warnings and which metrics sources exist.
+    2. Call argocd_list_applications [[list_hint]] to get sync/health/operation state of every app in scope.
+    3. For each app that is not Synced+Healthy, has a failed/errored last operation, has conditions or
+       is progressing too long: escalate step by step (argocd_get_application -> argocd_resource_tree ->
+       k8s_events on the failing nodes -> pod_logs only if needed -> argocd_metrics only if needed) and
+       stop as soon as the root cause is supported by evidence. Typical patterns:
+         - ImagePullBackOff / ErrImagePull: the image or tag does not exist or the registry denies access;
+           the pod's events carry the exact registry message.
+         - CrashLoopBackOff: the container exits; get the exit code from argocd_live_resource_status and
+           the reason from pod_logs with previous=true. Category crash_loop even when the reason is a missing
+           env var or bad config that the process reports at startup (container_config is only for
+           containers that cannot be created at all: CreateContainerConfigError).
+         - OutOfSync + Missing with no operation history and auto-sync disabled: never synced.
+         - ComparisonError / failed sync operation: quote the condition or operation message.
+    4. Healthy apps get verdict healthy, root_cause_category none, no evidence needed.
+
+    Read problem_flags and diagnostic_hints in the tool output first - they are computed from the
+    status and usually name the root cause category. Verdict mapping: health Missing -> missing,
+    Degraded -> degraded, Progressing -> progressing, Healthy but OutOfSync -> out_of_sync.
+
+    Evidence rules: every non-healthy app needs at least one evidence item whose detail is copied
+    verbatim from a tool result (event message, log line, status field or metric value) with the
+    source and a reference such as "Pod ns/name events". Do not invent resources, lines or numbers.
+    Put unavailable data sources (e.g. no Prometheus, metrics scrape timed out) into limitations.
+    Suggested next steps are suggestions only - never claim you executed them.
+  expected_output: >
+    An ArgoCDHealthReport: scope, a short human summary, one AppDiagnosis per application in scope
+    (verdict, failing_resources, probable_root_cause, root_cause_category, evidence, confidence,
+    suggested_next_steps), data_sources_used and limitations.
+
+diagnose_app:
+  description: >
+    Diagnose the Argo CD application "[[app_name]]".
+
+    1. argocd_get_application for "[[app_name]]" (sync, health, conditions, last operation, resources_not_ok).
+    2. If it is Synced and Healthy with no conditions, report it healthy and stop.
+    3. Otherwise escalate step by step and stop once the root cause is supported by evidence:
+       argocd_resource_tree -> k8s_events for the failing nodes -> argocd_live_resource_status for pods
+       (exit codes, waiting reasons) -> pod_logs (previous=true for CrashLoopBackOff) -> argocd_metrics
+       only if the problem looks performance/reconcile related.
+    Read problem_flags and diagnostic_hints first; they usually name the root cause category.
+    Quote evidence verbatim with its source (copy the exact text of a field, event or log line); never guess. Record unavailable sources as limitations.
+    Suggested next steps are suggestions only.
+  expected_output: >
+    An ArgoCDHealthReport whose apps list contains exactly one AppDiagnosis for "[[app_name]]", with
+    concrete evidence for the root cause, confidence, suggested next steps, data_sources_used and
+    limitations.

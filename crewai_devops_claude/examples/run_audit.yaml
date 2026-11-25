@@ -1,0 +1,23 @@
+# RunConfig for audit mode (see src/k8s_capacity/models.py: RunConfig)
+cluster_name: demo
+snapshot_file: tests/fixtures/demo_cluster.json   # remove to read the live cluster
+# kube_context: kind-dev01
+# prometheus_url: http://prometheus.monitoring:9090
+update_concurrency: sequential        # sequential | per_namespace | all
+# custom_update_groups: [["Deployment/shop/api", "Deployment/shop/web"]]
+require_n_minus_1: true
+require_update_reserve: true
+n_minus_1_max_nodes: 30
+pool_label: node.kubernetes.io/pool
+ipam:
+  mode: podcidr                       # podcidr | aws-vpc-cni | cilium-cluster-pool | static | unknown
+  reserved_per_cidr: 3
+  # aws-vpc-cni:  instance_ip_limits: {m5.xlarge: 58, r5.2xlarge: 58}
+reference_pods:
+  - {name: small, requests: {cpu: 250m, memory: 512Mi}}
+  - {name: medium, requests: {cpu: "1", memory: 2Gi}}
+autoscaler:
+  enabled: false
+  # kind: cluster-autoscaler
+  # node_groups:
+  #   - {name: general-asg, pool: general, min: 3, max: 6, current: 3, provisioning_minutes: 4}
