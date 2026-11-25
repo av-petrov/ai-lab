@@ -72,11 +72,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     llm_desc = "none (--no-llm)" if args.no_llm else (llm_profile.describe() if llm_profile else "CrewAI default model")
+    from .timing import RunTimer
+
+    timer = RunTimer()
     try:
-        ctx = create_context(settings)
+        with timer.phase("init", "backend and metrics sources"):
+            ctx = create_context(settings)
     except Exception as exc:  # noqa: BLE001
         print(f"error: cannot initialise backend: {exc}", file=sys.stderr)
         return 2
+    ctx.timer = timer
 
     if args.check:
         rep = ctx.access_report()
@@ -87,7 +92,8 @@ def main(argv: list[str] | None = None) -> int:
 
     scope = Scope(apps=args.app or [], project=args.project, all=bool(args.all))
     try:
-        missing = preflight_scope(ctx, scope)
+        with timer.phase("preflight", "list applications in scope"):
+            missing = preflight_scope(ctx, scope)
     except ScopeEmpty as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -106,7 +112,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.no_llm:
             from .triage import run_triage
 
-            report = finalize_report(run_triage(ctx, scope), ctx, scope.describe())
+            with timer.phase("triage", "rule-based triage (no LLM)"):
+                triaged = run_triage(ctx, scope)
+            report = finalize_report(triaged, ctx, scope.describe())
         else:
             from .crew import run_observability
 

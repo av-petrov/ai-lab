@@ -18,6 +18,7 @@ from .kube_client import KubeReader
 from .metrics import MetricsService
 from .models import ArgoCDHealthReport
 from .settings import ObservabilitySettings
+from .timing import RunTimer
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ class ObservabilityContext:
     metrics: MetricsService
     ledger: SourceLedger = field(default_factory=SourceLedger)
     startup_warnings: list[str] = field(default_factory=list)
+    timer: RunTimer = field(default_factory=RunTimer)
     _access: dict[str, Any] | None = None
 
     @property
@@ -135,6 +137,7 @@ def finalize_report(report: ArgoCDHealthReport, ctx: ObservabilityContext, scope
         a.revision = f.get("revision") or a.revision
         a.operation_phase = (f.get("last_operation") or {}).get("phase") or None
         a.verdict = verdict_for(a.sync_status, a.health_status)  # type: ignore[assignment]
+    report.timings = ctx.timer.summary()
     report.data_sources_used = [f"{k} ({v} calls)" for k, v in sorted(ctx.ledger.used.items())]
     lim = [f"{k} unavailable: {v}" for k, v in sorted(ctx.ledger.unavailable.items())]
     report.limitations = lim + [x for x in report.limitations if x not in lim]

@@ -55,6 +55,25 @@ class AppDiagnosis(BaseModel):
         description="Suggestions for a human or a remediation agent. NEVER executed by this agent.")
 
 
+class StepTiming(BaseModel):
+    step: str = Field(description="Phase name, tool name, or 'llm_call'.")
+    kind: Literal["phase", "tool", "llm", "event"]
+    started_at_s: float = Field(0.0, description="Seconds since the run started.")
+    seconds: float
+    detail: str | None = None
+    ok: bool = True
+
+
+class RunTimings(BaseModel):
+    total_seconds: float = 0.0
+    phases: list[StepTiming] = Field(default_factory=list)
+    steps: list[StepTiming] = Field(default_factory=list, description="Tool and LLM calls in start order.")
+    tool_calls: int = 0
+    tool_seconds: float = 0.0
+    llm_calls: int = 0
+    llm_seconds: float = 0.0
+
+
 class ArgoCDHealthReport(BaseModel):
     scope: str = Field(description="What was inspected, e.g. 'app hello-test' or 'all applications'.")
     generated_at: str = ""
@@ -64,6 +83,7 @@ class ArgoCDHealthReport(BaseModel):
     data_sources_used: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list,
                                    description="Unavailable data sources and anything that could not be verified.")
+    timings: RunTimings | None = Field(None, description="Filled in by code; leave null.")
 
     @property
     def unhealthy(self) -> list[AppDiagnosis]:

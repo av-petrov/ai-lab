@@ -8,6 +8,8 @@ from typing import Any, Callable, Tuple
 
 from pydantic import BaseModel, Field
 
+from sre_common.structured import structured_output
+
 from .models import ArgoCDHealthReport
 
 
@@ -46,9 +48,21 @@ def unverified_evidence(report: ArgoCDHealthReport, outputs: list[str], probe_le
             d = _norm(ev.detail)
             # compare a probe from the middle of the quote: tolerant to the LLM trimming the ends
             probe = d if len(d) <= probe_len else d[(len(d) - probe_len) // 2:(len(d) + probe_len) // 2]
-            if probe and probe not in hay:
+            if probe and probe not in hay and not _all_fields_found(d, hay):
                 bad.append(f"{app.app_name}: {ev.detail[:80]}")
     return bad
+
+
+# `,"key":` boundaries between JSON fields (the comma is dropped, the key kept)
+_FIELD_SPLIT = re.compile(r',\s*(?="[^"]{1,80}"\s*:)')
+
+
+def _all_fields_found(detail: str, hay: str) -> bool:
+    """A quote that joins several JSON fields of one tool result, e.g.
+    ``"automated_sync":false,"last_operation":null`` while the tool printed them apart: accept it when
+    every ``"key":value`` part appears verbatim in the tool output."""
+    parts = [p.strip() for p in _FIELD_SPLIT.split(detail)]
+    return len(parts) > 1 and all(p and p in hay for p in parts)
 
 
 # --------------------------------------------------------------------------- guardrail
@@ -56,9 +70,10 @@ def make_guardrail(ctx: Any | None = None, expect_apps: list[str] | None = None)
     """CrewAI task guardrail: structural checks only (never blocks on fuzzy matching)."""
 
     def guardrail(output: Any) -> Tuple[bool, Any]:
-        rep = getattr(output, "pydantic", None)
-        if not isinstance(rep, ArgoCDHealthReport):
-            return False, "Output must be valid JSON matching the ArgoCDHealthReport schema."
+        rep = parse_report(output)
+        if rep is None:
+            return _reject(ctx, "Output must be valid JSON matching the ArgoCDHealthReport schema. Reply with the "
+                                "corrected JSON only; do not call tools again.")
         problems = []
         for a in rep.apps:
             if a.verdict != "healthy":
@@ -76,10 +91,24 @@ def make_guardrail(ctx: Any | None = None, expect_apps: list[str] | None = None)
             if unknown:
                 problems.append(f"apps not returned by any tool (do not invent apps): {unknown}")
         if problems:
-            return False, "Fix the report: " + "; ".join(problems)
-        return True, output
+            return _reject(ctx, "Fix the report: " + "; ".join(problems)
+                           + ". Reuse the tool results you already have; call a tool only for data you do not have yet.")
+        if ctx is not None:
+            ctx.timer.mark("guardrail", "passed")
+        return True, rep  # a model: CrewAI exports it as task.output.pydantic
 
     return guardrail
+
+
+def _reject(ctx: Any | None, reason: str) -> Tuple[bool, str]:
+    if ctx is not None:  # visible in the Timing table: a rejection makes CrewAI re-run the whole task
+        ctx.timer.mark("guardrail", f"rejected: {reason[:200]}", ok=False)
+    return False, reason
+
+
+def parse_report(output: Any) -> ArgoCDHealthReport | None:
+    """The report from a CrewAI TaskOutput, also on the first guardrail attempt (see sre_common.structured)."""
+    return structured_output(output, ArgoCDHealthReport)
 
 
 # --------------------------------------------------------------------------- markdown
@@ -121,4 +150,28 @@ def render_markdown(rep: ArgoCDHealthReport) -> str:
             lines += [f"{i}. {s}" for i, s in enumerate(a.suggested_next_steps, 1)]
     lines += ["", "## Data sources", ""] + [f"- {s}" for s in rep.data_sources_used or ["(none recorded)"]]
     lines += ["", "## Limitations", ""] + [f"- {s}" for s in rep.limitations or ["none"]]
+    if rep.timings:
+        lines += [""] + render_timings(rep.timings)
     return "\n".join(lines) + "\n"
+
+
+def _cell(text: str | None) -> str:
+    return (text or "").replace("|", "\\|").replace("\n", " ")
+
+
+def render_timings(t: Any) -> list[str]:
+    """'## Timing' section: totals, phases, then every tool / LLM call in start order."""
+    other = max(0.0, t.total_seconds - t.llm_seconds - t.tool_seconds)
+    lines = ["## Timing", "",
+             f"Total **{t.total_seconds:.2f}s** - LLM {t.llm_seconds:.2f}s ({t.llm_calls} calls), "
+             f"tools {t.tool_seconds:.2f}s ({t.tool_calls} calls), other {other:.2f}s", ""]
+    if t.phases:
+        lines += ["| Phase | Start | Duration | Detail |", "|---|---:|---:|---|"]
+        lines += [f"| {p.step}{'' if p.ok else ' (failed)'} | {p.started_at_s:.2f}s | {p.seconds:.2f}s | {_cell(p.detail)} |"
+                  for p in t.phases]
+        lines.append("")
+    if t.steps:
+        lines += ["| # | Step | Start | Duration | Detail |", "|---:|---|---:|---:|---|"]
+        lines += [f"| {i} | {s.step}{'' if s.ok else ' (error)'} | {s.started_at_s:.2f}s | {s.seconds:.2f}s | "
+                  f"{_cell(s.detail)} |" for i, s in enumerate(t.steps, 1)]
+    return lines

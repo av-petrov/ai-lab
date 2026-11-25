@@ -24,7 +24,9 @@ def build_observability_crew(scope: Scope, settings: ObservabilitySettings | Non
 def run_observability(scope: Scope, settings: ObservabilitySettings | None = None, *,
                       context: ObservabilityContext | None = None, verbose: bool = False) -> ArgoCDHealthReport:
     crew = build_observability_crew(scope, settings, context=context, verbose=verbose)
-    result = crew.kickoff()
+    timer = agent_context(crew.agents[0]).timer
+    with timer.phase("agent", "LLM agent run (tool and LLM calls below)"), timer.watch_llm_calls():
+        result = crew.kickoff()
     report = result.pydantic
     if not isinstance(report, ArgoCDHealthReport):
         report = ArgoCDHealthReport.model_validate_json(result.raw)

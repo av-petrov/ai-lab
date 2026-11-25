@@ -9,6 +9,8 @@ explanations, and the verdict shown is always the computed one.
 import json
 from typing import Any, Tuple
 
+from sre_common.structured import structured_output
+
 from . import runtime
 from .engine.admission import search_remediations, simulate_admission
 from .engine.audit import run_audit
@@ -192,7 +194,7 @@ def render_admission_md(rep: AdmissionReport) -> str:
 # =========================================================================== guardrails
 def admission_guardrail(output: Any) -> Tuple[bool, Any]:
     """The LLM verdict must equal the verdict computed by simulate_admission."""
-    nar = getattr(output, "pydantic", None)
+    nar = structured_output(output, AdmissionNarrative)  # output.pydantic is unset on the first attempt
     if nar is None:
         return False, "Output must match the AdmissionNarrative schema."
     computed = runtime.load_result("simulate_admission")
@@ -203,14 +205,14 @@ def admission_guardrail(output: Any) -> Tuple[bool, Any]:
                        "Use the computed verdict; explain it, do not override it.")
     if {c.check for c in nar.checks} != {c["check"] for c in computed["checks"]}:
         return False, "Explain every one of the five checks exactly once."
-    return True, output
+    return True, nar
 
 
 def audit_guardrail(output: Any) -> Tuple[bool, Any]:
-    nar = getattr(output, "pydantic", None)
+    nar = structured_output(output, AuditNarrative)
     if nar is None:
         return False, "Output must match the AuditNarrative schema."
     bad = [f.statement[:60] for f in nar.key_findings if not f.evidence_refs]
     if bad:
         return False, f"Every finding needs evidence_refs into tool output; missing for: {bad}"
-    return True, output
+    return True, nar

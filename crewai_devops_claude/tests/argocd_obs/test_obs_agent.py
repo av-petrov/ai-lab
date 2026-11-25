@@ -93,14 +93,39 @@ def test_guardrail(ctx):
     assert not ok and "probable_root_cause" in msg
     ok, msg = g(SimpleNamespace(pydantic=_report(app_name="invented-app")))
     assert not ok and "invented-app" in msg
-    ok, msg = g(SimpleNamespace(pydantic=None))
+    ok, msg = g(SimpleNamespace(pydantic=None, raw="not json"))
     assert not ok
+    rejected = [x for x in ctx.timer.summary().steps if x.step == "guardrail" and not x.ok]
+    assert len(rejected) == 4 and "invented-app" in rejected[2].detail
+
+
+def test_guardrail_accepts_raw_json_on_first_attempt(ctx):
+    """CrewAI runs the guardrail before exporting output_pydantic: pydantic=None, the report is in raw."""
+    ctx.ledger.seen_apps.update({"demo-cl"})
+    g = make_guardrail(ctx, ["demo-cl"])
+    raw = _report().model_dump_json()
+    for text in (raw, f"```json\n{raw}\n```", f"Final Answer: {raw}"):
+        ok, rep = g(SimpleNamespace(pydantic=None, raw=text))
+        assert ok and isinstance(rep, ArgoCDHealthReport) and rep.apps[0].app_name == "demo-cl"
+    assert ctx.timer.summary().steps[-1].detail == "passed"
 
 
 def test_evidence_verification():
     rep = _report()
     assert unverified_evidence(rep, ['{"lines":"2026 FATAL: required environment variable REDIS_URL is not set"}']) == []
     assert unverified_evidence(rep, ['{"lines":"something else"}'])
+
+
+def test_evidence_joining_separate_fields_is_verified():
+    """The LLM quoted three fields of one tool result as one string (seen with gpt-6-luna)."""
+    tool_out = '{"automated_sync":false,"conditions":[],"last_operation":null,"revision":"8dda19c","history":[]}'
+    joined = _report(evidence=[Evidence(source="argocd_app_status", reference="Application hello-test",
+                                        detail='"automated_sync":false,"last_operation":null,"history":[]')])
+    assert unverified_evidence(joined, [tool_out]) == []
+    # every part must exist: one invented field still fails
+    invented = _report(evidence=[Evidence(source="argocd_app_status", reference="Application hello-test",
+                                          detail='"automated_sync":false,"last_operation":"Succeeded"')])
+    assert unverified_evidence(invented, [tool_out])
 
 
 def test_finalize_and_markdown(ctx):
@@ -130,6 +155,14 @@ def test_cli_check_and_no_llm(monkeypatch, capsys, broken_cluster_routes, tmp_pa
     out = capsys.readouterr().out
     assert "crash_loop" in out
     assert (tmp_path / "out" / "report.json").exists() and (tmp_path / "out" / "report.md").exists()
+    # timing: phases from the CLI, every tool call from the tool wrapper
+    assert "## Timing" in out and "| preflight |" in out and "| triage |" in out
+    t = ArgoCDHealthReport.model_validate_json((tmp_path / "out" / "report.json").read_text()).timings
+    assert t is not None and t.llm_calls == 0 and t.tool_calls == len(t.steps) > 0
+    assert [p.step for p in t.phases] == ["init", "preflight", "triage"]
+    assert t.steps[0].step == "argocd_access_check"
+    assert any(s.detail and "app_name=demo-cl" in s.detail for s in t.steps)
+    assert t.total_seconds >= t.tool_seconds
 
 
 def test_finalize_overrides_llm_status_with_tool_facts(ctx):

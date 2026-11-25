@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import functools
 import json
+import time
 from typing import Any, Callable, Literal, Type
 
 from crewai.tools import BaseTool
@@ -28,6 +29,7 @@ def _guarded(fn: Callable[..., Any]) -> Callable[..., str]:
     @functools.wraps(fn)
     def wrapper(self: "_ObsTool", *args: Any, **kwargs: Any) -> str:
         ctx = self._ctx
+        start = time.perf_counter()
         try:
             result = fn(self, *args, **kwargs)
         except ReadOnlyViolation as exc:
@@ -40,8 +42,21 @@ def _guarded(fn: Callable[..., Any]) -> Callable[..., str]:
                       "hint": "report this data source as unavailable; do not guess"}
         text = result if isinstance(result, str) else to_llm_json(result, ctx.settings.max_tool_output_chars)
         ctx.ledger.record_output(text)
+        failed = isinstance(result, dict) and ("error" in result or "refused" in result)
+        ctx.timer.tool(self.name, start, _call_detail(kwargs), not failed)
         return text
     return wrapper
+
+
+def _call_detail(kwargs: dict[str, Any]) -> str | None:
+    """Short 'key=value' summary of the call arguments for the timing table (no promql bodies)."""
+    parts = []
+    for k, v in kwargs.items():
+        if v is None or v == [] or k == "promql":
+            continue
+        text = ",".join(map(str, v)) if isinstance(v, list) else str(v)
+        parts.append(f"{k}={text[:60]}")
+    return " ".join(parts) or None
 
 
 class _ObsTool(BaseTool):

@@ -71,3 +71,6 @@ def test_admission_guardrail_blocks_verdict_override(root, tmp_path):
     right = wrong.model_copy(update={"verdict": computed["verdict"]})
     ok, _ = admission_guardrail(SimpleNamespace(pydantic=right))
     assert ok
+    # first guardrail attempt: CrewAI has not exported output_pydantic yet, only raw is set
+    ok, nar = admission_guardrail(SimpleNamespace(pydantic=None, raw=right.model_dump_json()))
+    assert ok and nar.verdict == computed["verdict"]
